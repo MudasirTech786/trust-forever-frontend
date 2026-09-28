@@ -8,7 +8,7 @@ import { useState } from "react";
 const navigation = [
   {
     name: "Dashboard",
-    href: "/dashboard",
+    href: "/",
   },
   {
     name: "Profiles",
@@ -105,8 +105,8 @@ export default function Sidebar({
 
       <nav aria-label="Main navigation" className={`relative flex flex-1 flex-col gap-1 overflow-visible px-3 py-6 transition-all duration-200 ${isExpanded ? "" : "px-3"}`}>
         {navigation.map((item) => {
-          const isActive = item.href === "/dashboard"
-            ? pathname === item.href
+          const isActive = item.href === "/"
+            ? pathname === "/"
             : pathname === item.href || pathname.startsWith(`${item.href}/`);
 
           return (

@@ -1,7 +1,10 @@
+import DashboardHome from "@/components/DashboardHome";
+import DashboardShell from "@/components/DashboardShell";
+
 export default function Home() {
   return (
-    <main>
-      <h1>Trust Forever Admin</h1>
-    </main>
+    <DashboardShell>
+      <DashboardHome />
+    </DashboardShell>
   );
 }

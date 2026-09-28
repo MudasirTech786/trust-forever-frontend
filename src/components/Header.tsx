@@ -16,12 +16,12 @@ export default function Header({
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [logoutNoticeOpen, setLogoutNoticeOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
-  const pageTitle = pathname === "/dashboard"
+  const pageTitle = pathname === "/" || pathname === "/dashboard"
     ? "Dashboard"
     : pathname === "/dashboard/edit-profile"
       ? "Edit Profile"
       : "Profiles";
-  const subtitle = pathname === "/dashboard"
+  const subtitle = pathname === "/" || pathname === "/dashboard"
     ? "Overview of your marriage bureau"
     : pathname === "/dashboard/edit-profile"
       ? "Manage your administrator profile"
