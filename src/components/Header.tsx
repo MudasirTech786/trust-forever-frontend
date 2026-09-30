@@ -51,7 +51,7 @@ export default function Header({
   }, [accountMenuOpen, logoutNoticeOpen]);
 
   return (
-    <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 sm:px-6 lg:px-8">
+    <header className="relative flex h-[68px] shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
         <button
           type="button"
@@ -71,13 +71,26 @@ export default function Header({
           <h2 className="text-sm font-semibold text-[#172033]">{pageTitle}</h2>
           <p className="mt-0.5 hidden text-xs text-[#64748B] sm:block">{subtitle}</p>
         </div>
-        <div className="flex min-w-0 items-center gap-2 lg:hidden">
-          <Image src="/images/icon.png" alt="" width={36} height={36} priority className="size-9 shrink-0 object-contain" />
-          <span className="min-w-0">
-            <span className="block truncate text-[11px] font-semibold tracking-[0.06em] text-[#0B2A4A]">TRUST FOREVER</span>
-            <span className="mt-0.5 block truncate text-[10px] text-[#64748B]">Marriage Bureau</span>
-          </span>
-        </div>
+        <div className="absolute left-1/2 top-1/2 right-1/8 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 lg:hidden">
+  <Image
+    src="/images/logo-icon.png"
+    alt="Trust Forever"
+    width={32}
+    height={32}
+    priority
+    className="size-8 shrink-0 object-contain"
+  />
+
+  <span className="min-w-0">
+    <span className="block whitespace-nowrap text-[11px] font-semibold tracking-[0.06em] text-[#0B2A4A]">
+      TRUST FOREVER
+    </span>
+
+    <span className="mt-0.5 block whitespace-nowrap text-[10px] text-[#64748B]">
+      Marriage Bureau
+    </span>
+  </span>
+</div>
       </div>
 
       <div ref={accountMenuRef} className="relative">
