@@ -4,26 +4,41 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
 
 const navigation = [
   {
     name: "Dashboard",
     href: "/",
+    icon: "dashboard",
+  },
+  {
+    name: "Roles & Permissions",
+    href: "/dashboard/roles-permissions",
+    icon: "roles",
+    permission: "roles.view",
+  },
+  {
+    name: "User Management",
+    href: "/dashboard/users",
+    icon: "users",
+    permission: "user.view",
   },
   {
     name: "Profiles",
     href: "/dashboard/profiles",
+    icon: "profiles",
   },
-];
+] as const;
 
-function NavIcon({ name }: { name: "dashboard" | "profiles" }) {
+function NavIcon({ name }: { name: "dashboard" | "profiles" | "roles" | "users" }) {
   if (name === "dashboard") {
     return (
       <svg
         aria-hidden="true"
         viewBox="0 0 20 20"
         fill="none"
-        className="size-5 text-[#F8FAFC]"
+        className="size-6 text-[#C89B2C] transition-colors group-hover:text-[#E2BC4F]"
       >
         <rect
           x="2.5"
@@ -65,12 +80,46 @@ function NavIcon({ name }: { name: "dashboard" | "profiles" }) {
     );
   }
 
+  if (name === "roles") {
+    return (
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 20 20"
+        fill="none"
+        className="size-6 text-[#C89B2C] transition-colors group-hover:text-[#E2BC4F]"
+      >
+        <path
+          d="M10 2.5 16 5v4.3c0 3.7-2.5 6.5-6 8.2-3.5-1.7-6-4.5-6-8.2V5l6-2.5Z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
+        <path
+          d="m7.5 9.8 1.7 1.7 3.4-3.6"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+
+  if (name === "users") {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="size-6 text-[#C89B2C] transition-colors group-hover:text-[#E2BC4F]">
+        <circle cx="7" cy="6" r="3" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M1.75 17a5.25 5.25 0 0 1 10.5 0M13 3.4a3 3 0 0 1 0 5.8m1.1 2.6a5.25 5.25 0 0 1 4.15 5.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
   return (
     <svg
       aria-hidden="true"
       viewBox="0 0 20 20"
       fill="none"
-      className="size-5 text-[#F8FAFC]"
+      className="size-6 text-[#C89B2C] transition-colors group-hover:text-[#E2BC4F]"
     >
       <circle
         cx="7"
@@ -103,6 +152,7 @@ export default function Sidebar({
   onMobileClose,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { permissions } = useAuth();
   const [hoverExpanded, setHoverExpanded] = useState(false);
 
   // Sidebar temporarily expands when hovered while manually collapsed.
@@ -157,7 +207,7 @@ export default function Sidebar({
         >
           {/* Full logo */}
           <Image
-            src="/images/hero-sidebar.png"
+            src="/images/hero-sidebarr.png"
             alt="Trust Forever Marriage Bureau"
             width={190}
             height={70}
@@ -255,11 +305,11 @@ export default function Sidebar({
       {/* Navigation */}
       <nav
         aria-label="Main navigation"
-        className={`relative flex flex-1 flex-col gap-1 overflow-visible px-3 py-6 transition-all duration-200 ${
+        className={`relative flex min-h-0 flex-1 flex-col gap-2 overflow-x-visible overflow-y-auto px-3 py-5 transition-all duration-200 ${
           isExpanded ? "" : "px-3"
         }`}
       >
-        {navigation.map((item) => {
+        {navigation.filter((item) => !("permission" in item) || permissions.includes(item.permission)).map((item) => {
           const isActive =
             item.href === "/"
               ? pathname === "/"
@@ -277,23 +327,19 @@ export default function Sidebar({
                   onMobileClose();
                 }
               }}
-              className={`group relative flex min-h-11 items-center gap-3 rounded-md border-l-2 text-sm font-medium transition-all duration-200 ${
+              className={`group relative flex min-h-[54px] items-center gap-3 rounded-md border-l-2 text-base font-semibold tracking-[0.01em] transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E2BC4F] ${
                 isActive
-                  ? "border-[#EAB308] bg-[#1E293B] text-[#F8FAFC] shadow-[0_2px_8px_rgba(0,0,0,0.14)]"
-                  : "border-transparent text-[#CBD5E1] hover:border-[#D97706]/70 hover:bg-[#1E293B] hover:text-white"
+                  ? "border-[#E2BC4F] bg-[#29364A] text-white shadow-[0_3px_10px_rgba(0,0,0,0.18)]"
+                  : "border-transparent text-[#E2E8F0] hover:border-[#D9B34A]/70 hover:bg-[#202D40] hover:text-white"
               } ${
                 isExpanded
                   ? "justify-start px-4"
                   : "justify-center px-0"
               }`}
             >
-              <NavIcon
-                name={
-                  item.name === "Dashboard"
-                    ? "dashboard"
-                    : "profiles"
-                }
-              />
+              <span className={`flex size-10 shrink-0 items-center justify-center rounded-md border transition-colors duration-200 ${isActive ? "border-[#C89B2C]/35 bg-[#C89B2C]/15" : "border-transparent bg-[#C89B2C]/[0.07] group-hover:border-[#C89B2C]/25 group-hover:bg-[#C89B2C]/[0.13]"}`}>
+                <NavIcon name={item.icon} />
+              </span>
 
               <span
                 className={`whitespace-nowrap transition-all duration-200 ${
@@ -307,7 +353,7 @@ export default function Sidebar({
 
               {/* Tooltip when sidebar is collapsed */}
               {!isExpanded && (
-                <span className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded border border-[#475569] bg-[#1E293B] px-2.5 py-1.5 text-xs font-medium text-[#F8FAFC] shadow-md group-hover:block group-focus-visible:block">
+                <span className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-md border border-[#475569] bg-[#1E293B] px-3 py-2 text-sm font-semibold text-[#F8FAFC] shadow-md group-hover:block group-focus-visible:block">
                   {item.name}
                 </span>
               )}

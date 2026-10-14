@@ -4,6 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/components/AuthProvider";
+import { useConfirm, useToast } from "@/components/ToastProvider";
+import ProfilePhoto from "@/components/ProfilePhoto";
 
 export default function Header({
   mobileMenuOpen,
@@ -13,22 +16,50 @@ export default function Header({
   onMenuClick: () => void;
 }) {
   const pathname = usePathname();
+  const { logout, user } = useAuth();
+  const requestConfirmation = useConfirm();
+  const { notify } = useToast();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [logoutNoticeOpen, setLogoutNoticeOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement>(null);
+  const headerName = user?.name || "Administrator";
   const pageTitle = pathname === "/" || pathname === "/dashboard"
-    ? "Dashboard"
-    : pathname === "/dashboard/edit-profile"
-      ? "Edit Profile"
-      : "Profiles";
+    ? "DASHBOARD"
+    : pathname === "/dashboard/roles-permissions"
+      ? "ROLES & PERMISSIONS"
+    : pathname === "/dashboard/users"
+      ? "USERS"
+      : pathname === "/dashboard/edit-profile"
+        ? "EDIT PROFILE"
+        : "PROFILES";
   const subtitle = pathname === "/" || pathname === "/dashboard"
     ? "Overview of your marriage bureau"
-    : pathname === "/dashboard/edit-profile"
-      ? "Manage your administrator profile"
-      : "Manage registered profiles";
+    : pathname === "/dashboard/roles-permissions"
+      ? "Manage administrator roles and access"
+      : pathname === "/dashboard/users"
+        ? "Manage registered users"
+        : pathname === "/dashboard/edit-profile"
+          ? "Manage your administrator profile"
+          : "Manage registered profiles";
+
+  function handleLogout(): void {
+    requestConfirmation({
+      title: "Logout?",
+      message: "Are you sure you want to logout from your account?",
+      confirmLabel: "Logout",
+      pendingLabel: "Logging out...",
+      cancelLabel: "Cancel",
+      destructive: true,
+      onConfirm: logout,
+      onError: () => notify({
+        variant: "error",
+        title: "Unable to sign out",
+        message: "Please try again.",
+      }),
+    });
+  }
 
   useEffect(() => {
-    if (!accountMenuOpen && !logoutNoticeOpen) return;
+    if (!accountMenuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
       if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
@@ -38,7 +69,6 @@ export default function Header({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setAccountMenuOpen(false);
-        setLogoutNoticeOpen(false);
       }
     };
 
@@ -48,7 +78,7 @@ export default function Header({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [accountMenuOpen, logoutNoticeOpen]);
+  }, [accountMenuOpen]);
 
   return (
     <header className="relative flex h-[68px] shrink-0 items-center justify-between border-b border-[#E5E7EB] bg-white px-4 sm:px-6 lg:px-8">
@@ -67,30 +97,30 @@ export default function Header({
               : <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />}
           </svg>
         </button>
-        <div className="hidden min-w-0 lg:block">
-          <h2 className="text-sm font-semibold text-[#172033]">{pageTitle}</h2>
-          <p className="mt-0.5 hidden text-xs text-[#64748B] sm:block">{subtitle}</p>
+        <div className="hidden min-w-0 flex-col gap-1 lg:flex">
+          <h2 className="truncate text-lg font-semibold leading-5 tracking-[-0.02em] text-[#0B2A4A]">{pageTitle}</h2>
+          <p className="truncate text-xs leading-4 text-[#64748B]">{subtitle}</p>
         </div>
         <div className="absolute left-1/2 top-1/2 right-1/8 flex -translate-x-1/2 -translate-y-1/2 items-center gap-2 lg:hidden">
-  <Image
-    src="/images/logo-icon.png"
-    alt="Trust Forever"
-    width={32}
-    height={32}
-    priority
-    className="size-8 shrink-0 object-contain"
-  />
+          <Image
+            src="/images/logo-icon.png"
+            alt="Trust Forever"
+            width={32}
+            height={32}
+            priority
+            className="size-8 shrink-0 object-contain"
+          />
 
-  <span className="min-w-0">
-    <span className="block whitespace-nowrap text-[11px] font-semibold tracking-[0.06em] text-[#0B2A4A]">
-      TRUST FOREVER
-    </span>
+          <span className="min-w-0">
+            <span className="block whitespace-nowrap text-[11px] font-semibold tracking-[0.06em] text-[#0B2A4A]">
+              TRUST FOREVER
+            </span>
 
-    <span className="mt-0.5 block whitespace-nowrap text-[10px] text-[#64748B]">
-      Marriage Bureau
-    </span>
-  </span>
-</div>
+            <span className="mt-0.5 block whitespace-nowrap text-[10px] text-[#64748B]">
+              Marriage Bureau
+            </span>
+          </span>
+        </div>
       </div>
 
       <div ref={accountMenuRef} className="relative">
@@ -102,11 +132,11 @@ export default function Header({
           onClick={() => setAccountMenuOpen((isOpen) => !isOpen)}
           className="flex items-center gap-3 rounded-md px-1 py-1 text-left transition hover:bg-[#F7F7F5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C89B2C]"
         >
-          <span aria-hidden="true" className="flex size-9 items-center justify-center rounded-full border border-[#EAB308]/70 bg-[#0F172A] text-xs font-semibold text-[#F8FAFC] ring-2 ring-[#C89B2C] ring-offset-2 ring-offset-white">
-            A
+          <span aria-hidden="true" className="relative flex size-9 items-center justify-center overflow-hidden rounded-full border border-[#EAB308]/70 bg-[#0F172A] text-xs font-semibold text-[#F8FAFC] ring-2 ring-[#C89B2C] ring-offset-2 ring-offset-white">
+            <ProfilePhoto src={user?.profile_picture_url} alt="Administrator" fill sizes="36px" className="object-cover" />
           </span>
           <span className="hidden sm:block">
-            <span className="block text-sm font-medium leading-5 text-[#172033]">Administrator</span>
+            <span className="block text-sm font-medium leading-5 text-[#172033]">{headerName}</span>
             <span className="block text-xs leading-4 text-[#64748B]">Trust Forever</span>
           </span>
           <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" className={`size-4 text-[#64748B] transition-transform ${accountMenuOpen ? "rotate-180" : ""}`}>
@@ -117,7 +147,7 @@ export default function Header({
         {accountMenuOpen && (
           <div role="menu" aria-label="Administrator account" className="absolute right-0 top-full z-40 mt-3 w-56 overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-1.5 shadow-[0_12px_32px_rgba(23,32,51,0.16)]">
             <div className="border-b border-[#EEF0F2] px-4 py-3 sm:hidden">
-              <p className="text-sm font-medium text-[#172033]">Administrator</p>
+              <p className="text-sm font-medium text-[#172033]">{headerName}</p>
               <p className="mt-0.5 text-xs text-[#64748B]">Trust Forever</p>
             </div>
             <Link
@@ -137,7 +167,7 @@ export default function Header({
               role="menuitem"
               onClick={() => {
                 setAccountMenuOpen(false);
-                setLogoutNoticeOpen(true);
+                handleLogout();
               }}
               className="flex min-h-11 w-full items-center gap-3 px-4 text-sm text-[#7C3F36] transition hover:bg-[#FBF4F2] focus-visible:bg-[#FBF4F2] focus-visible:outline-none"
             >
@@ -150,26 +180,6 @@ export default function Header({
         )}
       </div>
 
-      {logoutNoticeOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B2A4A]/35 p-4" onMouseDown={(event) => {
-          if (event.target === event.currentTarget) setLogoutNoticeOpen(false);
-        }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="logout-notice-title" className="w-full max-w-sm rounded-lg border border-[#E8E0D0] bg-white p-6 shadow-[0_20px_60px_rgba(11,42,74,0.2)]">
-            <div className="flex size-11 items-center justify-center rounded-full bg-[#F7F2E5] text-[#9A7625]">
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="size-5">
-                <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.4" />
-                <path d="M10 6v4.5m0 3h.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </div>
-            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.12em] text-[#9A7625]">Coming soon</p>
-            <h2 id="logout-notice-title" className="mt-1 text-lg font-semibold text-[#172033]">Logout isn&apos;t available yet</h2>
-            <p className="mt-2 text-sm leading-6 text-[#64748B]">Sign-out will be available when account access is connected. Your session remains active.</p>
-            <button type="button" autoFocus onClick={() => setLogoutNoticeOpen(false)} className="mt-5 min-h-10 rounded-md bg-[#0B2A4A] px-4 text-sm font-medium text-white transition hover:bg-[#123E68] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C89B2C]">
-              Got it
-            </button>
-          </section>
-        </div>
-      )}
     </header>
   );
 }
