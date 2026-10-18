@@ -120,7 +120,7 @@ export function resolvePublicImageUrl(imagePath: string | null | undefined): str
     // Laravel's Storage::url() uses APP_URL. If production APP_URL was left
     // pointing at a developer machine, browsers cannot reach that host.
     // Keep the path but serve it from the API host configured for this app.
-    if (["localhost", "127.0.0.1", "::1"].includes(resolvedUrl.hostname)) {
+    if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(resolvedUrl.hostname)) {
       const apiUrl = new URL(`${apiBaseUrl}/`);
       resolvedUrl.protocol = apiUrl.protocol;
       resolvedUrl.host = apiUrl.host;
