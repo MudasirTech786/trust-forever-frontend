@@ -104,7 +104,10 @@ export class ApiError extends Error {
 const defaultApiBaseUrl = typeof window === "undefined"
   ? "http://localhost:8000"
   : `http://${window.location.hostname}:8000`;
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
+export const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl)
+  .trim()
+  .replace(/\/+$/, "")
+  .replace(/\/api$/i, "");
 
 export function resolvePublicImageUrl(imagePath: string | null | undefined): string {
   const fallbackPath = "storage/matrimonial-profiles/avatar.jpg";

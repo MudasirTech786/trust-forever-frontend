@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getCurrentPermissions, type AuthenticatedUser } from "@/services/rolesPermissions";
+import { apiBaseUrl, getCurrentPermissions, type AuthenticatedUser } from "@/services/rolesPermissions";
 
 type AuthUser = AuthenticatedUser;
 
@@ -22,11 +22,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const defaultApiBaseUrl = typeof window === "undefined"
-  ? "http://localhost:8000"
-  : `http://${window.location.hostname}:8000`;
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl).replace(/\/$/, "");
-
 function xsrfToken(): string {
   const token = document.cookie
     .split("; ")
