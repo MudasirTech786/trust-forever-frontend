@@ -222,7 +222,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
     throw new ApiError(
       response.status,
-      validationMessage ?? statusMessage[response.status] ?? payload?.message ?? "The request could not be completed.",
+      validationMessage ?? payload?.message ?? statusMessage[response.status] ?? "The request could not be completed.",
     );
   }
 
@@ -243,7 +243,18 @@ export async function loginAdmin(email: string, password: string): Promise<{ use
     body: JSON.stringify({ email, password }),
   });
 
-  return getCurrentUser();
+  try {
+    return await getCurrentUser();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      throw new ApiError(
+        401,
+        `Laravel accepted the login request, but /api/me returned 401 (${error.message}). The browser session was not established; verify the session cookie and Sanctum stateful-domain configuration.`,
+      );
+    }
+
+    throw error;
+  }
 }
 
 export function logoutAdmin(): Promise<void> {
