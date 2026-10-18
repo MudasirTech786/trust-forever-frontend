@@ -115,7 +115,18 @@ export function resolvePublicImageUrl(imagePath: string | null | undefined): str
   if (!apiBaseUrl) return fallbackPath;
 
   try {
-    return new URL(path, `${apiBaseUrl}/`).toString();
+    const resolvedUrl = new URL(path, `${apiBaseUrl}/`);
+
+    // Laravel's Storage::url() uses APP_URL. If production APP_URL was left
+    // pointing at a developer machine, browsers cannot reach that host.
+    // Keep the path but serve it from the API host configured for this app.
+    if (["localhost", "127.0.0.1", "::1"].includes(resolvedUrl.hostname)) {
+      const apiUrl = new URL(`${apiBaseUrl}/`);
+      resolvedUrl.protocol = apiUrl.protocol;
+      resolvedUrl.host = apiUrl.host;
+    }
+
+    return resolvedUrl.toString();
   } catch {
     return new URL(fallbackPath, `${apiBaseUrl}/`).toString();
   }
