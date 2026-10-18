@@ -50,10 +50,10 @@ export default function Header({
       cancelLabel: "Cancel",
       destructive: true,
       onConfirm: logout,
-      onError: () => notify({
+      onError: (error) => notify({
         variant: "error",
         title: "Unable to sign out",
-        message: "Please try again.",
+        message: error instanceof Error ? error.message : "Please try again.",
       }),
     });
   }

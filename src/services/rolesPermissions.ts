@@ -101,11 +101,10 @@ export class ApiError extends Error {
   }
 }
 
-const defaultApiBaseUrl = typeof window === "undefined"
-  ? "http://localhost:8000"
-  : `http://${window.location.hostname}:8000`;
-export const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL ?? defaultApiBaseUrl)
-  .trim()
+const defaultApiBaseUrl = process.env.NODE_ENV === "development"
+  ? typeof window === "undefined" ? "http://localhost:8000" : `http://${window.location.hostname}:8000`
+  : "";
+export const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL?.trim() || defaultApiBaseUrl)
   .replace(/\/+$/, "")
   .replace(/\/api$/i, "");
 
@@ -113,10 +112,24 @@ export function resolvePublicImageUrl(imagePath: string | null | undefined): str
   const fallbackPath = "storage/matrimonial-profiles/avatar.jpg";
   const path = imagePath?.trim() || fallbackPath;
 
+  if (!apiBaseUrl) return fallbackPath;
+
   try {
     return new URL(path, `${apiBaseUrl}/`).toString();
   } catch {
     return new URL(fallbackPath, `${apiBaseUrl}/`).toString();
+  }
+}
+
+async function fetchApi(url: string, init: RequestInit): Promise<Response> {
+  if (!apiBaseUrl) {
+    throw new ApiError(0, "The admin API URL is not configured. Set NEXT_PUBLIC_API_URL for this deployment.");
+  }
+
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new ApiError(0, "Unable to reach the admin API. Check your connection and the API CORS configuration, then try again.");
   }
 }
 
@@ -130,14 +143,19 @@ function xsrfToken(): string {
 }
 
 async function initializeCsrf(): Promise<string> {
-  const response = await fetch(`${apiBaseUrl}/sanctum/csrf-cookie`, {
+  const response = await fetchApi(`${apiBaseUrl}/sanctum/csrf-cookie`, {
     credentials: "include",
     headers: { Accept: "application/json" },
     cache: "no-store",
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, "Unable to start a secure request.");
+    const message = response.status === 419
+      ? "The secure session expired. Refresh the page and try again."
+      : response.status === 401
+        ? "Your session has expired. Sign in again to continue."
+        : "Unable to start a secure request. Please try again.";
+    throw new ApiError(response.status, message);
   }
 
   const token = xsrfToken();
@@ -164,7 +182,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers.set("X-XSRF-TOKEN", await initializeCsrf());
   }
 
-  const response = await fetch(`${apiBaseUrl}/api${path}`, {
+  const response = await fetchApi(`${apiBaseUrl}/api${path}`, {
     ...init,
     method,
     headers,
@@ -187,7 +205,6 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         method,
         url: `${apiBaseUrl}/api${path}`,
         status: response.status,
-        response: payload,
       });
     }
 
@@ -196,6 +213,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       : undefined;
     const statusMessage: Record<number, string> = {
       401: "Your session has expired. Sign in again to continue.",
+      419: "The secure session expired. Refresh the page and try again.",
       403: "You do not have permission to perform this action.",
       404: "The requested item could not be found.",
       422: "Please review the submitted values.",
