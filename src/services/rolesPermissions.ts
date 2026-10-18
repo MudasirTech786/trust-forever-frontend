@@ -215,6 +215,23 @@ export function getCurrentPermissions(): Promise<CurrentPermissions> {
   return request<CurrentPermissions>("/me/permissions");
 }
 
+export function getCurrentUser(): Promise<{ user: AuthenticatedUser }> {
+  return request<{ user: AuthenticatedUser }>("/me");
+}
+
+export async function loginAdmin(email: string, password: string): Promise<{ user: AuthenticatedUser }> {
+  await request<{ user: AuthenticatedUser }>("/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+
+  return getCurrentUser();
+}
+
+export function logoutAdmin(): Promise<void> {
+  return request<void>("/logout", { method: "POST" });
+}
+
 export function updateCurrentProfile(formData: FormData): Promise<{ user: AuthenticatedUser }> {
   return request<{ user: AuthenticatedUser }>("/me", {
     method: "POST",

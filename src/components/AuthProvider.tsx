@@ -9,7 +9,14 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { apiBaseUrl, getCurrentPermissions, type AuthenticatedUser } from "@/services/rolesPermissions";
+import {
+  ApiError,
+  getCurrentPermissions,
+  getCurrentUser,
+  loginAdmin,
+  logoutAdmin,
+  type AuthenticatedUser,
+} from "@/services/rolesPermissions";
 
 type AuthUser = AuthenticatedUser;
 
@@ -22,26 +29,6 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-function xsrfToken(): string {
-  const token = document.cookie
-    .split("; ")
-    .find((cookie) => cookie.startsWith("XSRF-TOKEN="))
-    ?.slice("XSRF-TOKEN=".length);
-
-  return token ? decodeURIComponent(token) : "";
-}
-
-async function initializeCsrf(): Promise<void> {
-  const response = await fetch(`${apiBaseUrl}/sanctum/csrf-cookie`, {
-    credentials: "include",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    throw new Error("Unable to start a secure sign-in session.");
-  }
-}
 
 export default function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -55,53 +42,33 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isCurrent = true;
 
-    fetch(`${apiBaseUrl}/api/me`, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    })
-      .then(async (response) => {
+    getCurrentUser()
+      .then(async ({ user: authenticatedUser }) => {
         if (!isCurrent) return;
 
-        if (response.ok) {
-          const payload = (await response.json()) as { user: AuthUser };
-
-          if (!permissionsLoaded.current) {
-            try {
-              const access = await getCurrentPermissions();
-              if (isCurrent) {
-                setPermissions(access.permissions);
-              }
-            } catch {
-              if (isCurrent) {
-                setPermissions([]);
-              }
+        if (!permissionsLoaded.current) {
+          try {
+            const access = await getCurrentPermissions();
+            if (isCurrent) {
+              setPermissions(access.permissions);
             }
-
-            permissionsLoaded.current = true;
+          } catch {
+            if (isCurrent) {
+              setPermissions([]);
+            }
           }
 
-          if (!isCurrent) return;
-
-          setUser(payload.user);
-          setCheckedPath(pathname);
-          setIsChecking(false);
-
-          if (pathname === "/login") {
-            router.replace("/");
-          }
-
-          return;
+          permissionsLoaded.current = true;
         }
 
-        setUser(null);
-        setPermissions([]);
-        permissionsLoaded.current = false;
+        if (!isCurrent) return;
+
+        setUser(authenticatedUser);
         setCheckedPath(pathname);
         setIsChecking(false);
 
-        if (pathname !== "/login") {
-          router.replace("/login");
+        if (pathname === "/login") {
+          router.replace("/");
         }
       })
       .catch(() => {
@@ -123,40 +90,26 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
   }, [pathname, router]);
 
   async function login(email: string, password: string): Promise<void> {
-    await initializeCsrf();
-    const response = await fetch(`${apiBaseUrl}/api/login`, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-XSRF-TOKEN": xsrfToken(),
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const payload = await loginAdmin(email, password);
+      setUser(payload.user);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 422) {
+        throw new Error("The email or password is incorrect.");
+      }
 
-    if (!response.ok) {
-      throw new Error(response.status === 422
-        ? "The email or password is incorrect."
-        : "Unable to sign in. Please try again.");
+      if (error instanceof ApiError && error.status === 401) {
+        throw new Error("Sign-in could not be verified. Please try again.");
+      }
+
+      throw new Error("Unable to sign in. Please try again.");
     }
-
-    const payload = (await response.json()) as { user: AuthUser };
-    setUser(payload.user);
   }
 
   async function logout(): Promise<void> {
-    await initializeCsrf();
-    const response = await fetch(`${apiBaseUrl}/api/logout`, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        "X-XSRF-TOKEN": xsrfToken(),
-      },
-    });
-
-    if (!response.ok) {
+    try {
+      await logoutAdmin();
+    } catch {
       throw new Error("Unable to sign out. Please try again.");
     }
 
