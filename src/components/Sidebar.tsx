@@ -207,7 +207,7 @@ export default function Sidebar({
         >
           {/* Full logo */}
           <Image
-            src="/images/hero-sidebarr.png"
+            src="/images/Hero-sidebarr.png"
             alt="Trust Forever Marriage Bureau"
             width={190}
             height={70}
