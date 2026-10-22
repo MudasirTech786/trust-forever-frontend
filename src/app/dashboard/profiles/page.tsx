@@ -18,15 +18,15 @@ function ProfileCard({ profile, canEdit, canDelete, onDelete, onShare }: { profi
     <div className="flex gap-4">
       <div className="relative size-24 shrink-0">
         <div className="absolute inset-0 overflow-hidden rounded-md border border-[#E8E0D0] bg-[#FBF8EF]">
-          <ProfilePhoto src={profile.profile_picture_url} alt={profile.name} fill sizes="96px" className="object-cover" />
+          <ProfilePhoto src={profile.profile_picture_url} alt={profile.name || "Matrimonial profile"} fill sizes="96px" className="object-cover" />
         </div>
         <span className="absolute left-0 top-0 z-20 -translate-x-[18%] -translate-y-[18%] whitespace-nowrap rounded-md rounded-br-xl border border-[#D8C99F] bg-[#0B2A4A]/95 px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.06em] text-white shadow-[0_3px_8px_rgba(11,42,74,0.2)] backdrop-blur-sm sm:px-3 sm:text-xs">{profile.profile_id}</span>
       </div>
       <div className="min-w-0 flex-1 pt-1">
-        <h2 className="truncate text-base font-semibold text-[#0B2A4A]">{profile.name}</h2>
+        <h2 className="truncate text-base font-semibold text-[#0B2A4A]">{profile.name || "Profile details"}</h2>
         <p className="mt-0.5 text-xs font-medium text-[#9A7625]">Profile ID: <span className="select-all">{profile.profile_id}</span></p>
         <p className="mt-1 text-sm capitalize text-[#64748B]">{profile.gender} <span aria-hidden="true">·</span> {profile.marital_status}</p>
-        <p className="mt-1 text-sm text-[#475569]">{profile.age} years{profile.height ? ` · ${profile.height}` : ""}</p>
+        <p className="mt-1 text-sm text-[#475569]">{profile.age === null ? "" : `${profile.age} years`}{profile.height ? ` · ${profile.height}` : ""}</p>
       </div>
     </div>
     <div className="mt-5 grid grid-cols-2 gap-x-3 gap-y-3 border-t border-[#F0ECE3] pt-4 text-sm">

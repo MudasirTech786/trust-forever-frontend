@@ -26,9 +26,7 @@ function ProfileAvatar({ profile }: { profile: DashboardRecentProfile }) {
 }
 
 function RecentProfileCard({ profile, canEdit, onShare }: { profile: DashboardRecentProfile; canEdit: boolean; onShare: (profile: DashboardRecentProfile) => void }) {
-  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(profile.date_of_birth)
-    && !Number.isNaN(new Date(`${profile.date_of_birth}T00:00:00Z`).getTime());
-  const age = validDate && Number.isFinite(profile.age) ? profile.age : null;
+  const age = Number.isFinite(profile.age) ? profile.age : null;
   const details = [profile.gender ? profile.gender[0].toUpperCase() + profile.gender.slice(1) : null, age === null ? null : `${age} years old`, profile.city].filter(Boolean);
 
   return <article className="group flex min-w-0 flex-col overflow-visible rounded-lg border border-[#E8E0D0] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.035)] transition duration-200 hover:-translate-y-0.5 hover:border-[#D8C99F] hover:shadow-[0_8px_24px_rgba(23,32,51,0.09)]">

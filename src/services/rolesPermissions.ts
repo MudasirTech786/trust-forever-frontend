@@ -27,11 +27,10 @@ export type MatrimonialProfile = {
   id: number;
   profile_id: string;
   profile_picture_url: string | null;
-  name: string;
-  gender: "female" | "male";
-  marital_status: "unmarried" | "married" | "divorced" | "widowed";
-  date_of_birth: string;
-  age: number;
+  name: string | null;
+  gender: "female" | "male" | null;
+  marital_status: "unmarried" | "married" | "divorced" | "widowed" | null;
+  age: number | null;
   height: string | null;
   sect: string | null;
   caste: string | null;
@@ -69,7 +68,7 @@ export type ProfileFilters = Partial<Pick<MatrimonialProfile, "gender" | "marita
 };
 
 export type DashboardRecentProfile = Pick<MatrimonialProfile,
-  "id" | "profile_id" | "profile_picture_url" | "name" | "gender" | "date_of_birth" | "age" | "city" | "qualification" | "caste" | "sect"
+  "id" | "profile_id" | "profile_picture_url" | "name" | "gender" | "age" | "city" | "qualification" | "caste" | "sect"
 >;
 
 export type DashboardProfileSummary = {

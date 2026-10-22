@@ -12,10 +12,10 @@ type Props = { profile?: MatrimonialProfile };
 type Fields = Record<ProfileFormKey, string>;
 
 const initialFields: Fields = {
-  name: "", gender: "", marital_status: "", date_of_birth: "", height: "", sect: "", caste: "", language: "",
+  name: "", gender: "", marital_status: "", age: "", height: "", sect: "", caste: "", language: "",
   qualification: "", educational_institution: "", employed: "", job: "", business: "", income: "", father_details: "", father_name: "", father_occupation: "", mother_details: "", other_details: "", house_size: "",
-  society: "", city: "", sisters_count: "0", sisters_details: "", married_sisters_count: "0", brothers_count: "0",
-  brothers_details: "", married_brothers_count: "0", partner_requirements: "", father_whatsapp: "", mother_whatsapp: "", whatsapp_number: "", parents_whatsapp: "",
+  society: "", city: "", sisters_count: "", sisters_details: "", married_sisters_count: "", brothers_count: "",
+  brothers_details: "", married_brothers_count: "", partner_requirements: "", father_whatsapp: "", mother_whatsapp: "", whatsapp_number: "", parents_whatsapp: "",
 };
 
 const fieldsFromProfile = (profile: MatrimonialProfile): Fields => Object.keys(initialFields).reduce<Fields>((fields, key) => {
@@ -29,13 +29,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return <section className="rounded-lg border border-[#E8E0D0] bg-white p-5 shadow-[0_2px_8px_rgba(23,32,51,0.035)] sm:p-6"><h2 className="mb-5 text-base font-semibold text-[#0B2A4A]">{title}</h2><div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div></section>;
 }
 
-function Field({ label, name, value, onChange, type = "text", required = false, options }: {
-  label: string; name: string; value: string; onChange: (name: string, value: string) => void; type?: string; required?: boolean; options?: Array<[string, string]>;
+function Field({ label, name, value, onChange, type = "text", min, max, step, options }: {
+  label: string; name: string; value: string; onChange: (name: string, value: string) => void; type?: string; min?: number; max?: number; step?: number; options?: Array<[string, string]>;
 }) {
   const className = "mt-1.5 min-h-11 w-full rounded-md border border-[#CBD5E1] bg-white px-3 text-sm text-[#172033] outline-none transition focus:border-[#C89B2C] focus:ring-2 focus:ring-[#C89B2C]/15";
-  return <label className="block text-sm font-medium text-[#334155]">{label}{required && <span className="ml-1 text-[#9B342B]">*</span>}
-    {options ? <select required={required} value={value} onChange={(event) => onChange(name, event.target.value)} className={className}><option value="">Select {label.toLowerCase()}</option>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select>
-      : <input required={required} type={type} value={value} onChange={(event) => onChange(name, event.target.value)} className={className} />}
+  return <label className="block text-sm font-medium text-[#334155]">{label}
+    {options ? <select value={value} onChange={(event) => onChange(name, event.target.value)} className={className}><option value="">Select {label.toLowerCase()}</option>{options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select>
+      : <input type={type} min={min} max={max} step={step} value={value} onChange={(event) => onChange(name, event.target.value)} className={className} />}
   </label>;
 }
 
@@ -92,7 +92,13 @@ export default function ProfileForm({ profile }: Props) {
     setSaving(true);
     setError("");
     const data = new FormData();
-    Object.entries(values).forEach(([key, value]) => data.set(key, value));
+    Object.entries(values).forEach(([key, value]) => {
+      if (["sisters_count", "married_sisters_count", "brothers_count", "married_brothers_count"].includes(key) && !value.trim()) {
+        data.set(key, "");
+      } else {
+        data.set(key, value);
+      }
+    });
     if (photo) data.set("profile_picture", photo);
     if (removePhoto) data.set("remove_profile_picture", "1");
     try {
@@ -121,8 +127,6 @@ export default function ProfileForm({ profile }: Props) {
         <button type="button" onClick={parsePastedProfile} disabled={!pastedText.trim()} className="min-h-10 rounded-md bg-[#0B2A4A] px-4 text-sm font-medium text-white hover:bg-[#123E68] disabled:cursor-not-allowed disabled:opacity-50">Parse &amp; Fill Form</button>
         {parseResult && <div className="space-y-3 rounded-md border border-[#E8E0D0] bg-[#FBF8EF] p-4" aria-live="polite">
           <div><h3 className="text-sm font-semibold text-[#0B2A4A]">Profile information detected</h3><p className="mt-1 text-sm text-[#64748B]">{parseResult.detected.length ? parseResult.detected.join(" · ") : "No recognized profile fields yet."}</p></div>
-          {parseResult.missingRequired.length > 0 && <p className="text-sm text-[#8F5D14]">Still needed: {parseResult.missingRequired.join(", ")}. You can fill these in after applying the recognized details.</p>}
-          {parseResult.warnings.map((warning) => <p key={warning} className="text-sm text-[#8F5D14]">{warning}</p>)}
           {parseResult.unrecognized.length > 0 && <div><h4 className="text-sm font-medium text-[#334155]">Unrecognized information</h4><pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-sm text-[#64748B]">{parseResult.unrecognized.join("\n\n")}</pre></div>}
           <div className="flex flex-wrap gap-2"><button type="button" onClick={fillFromParsedProfile} disabled={Object.keys(parseResult.data).length === 0} className="min-h-10 rounded-md bg-[#0B2A4A] px-4 text-sm font-medium text-white hover:bg-[#123E68] disabled:cursor-not-allowed disabled:opacity-50">Fill Form</button><button type="button" onClick={() => { setParseResult(null); setEntryMode("form"); }} className="min-h-10 rounded-md border border-[#CBD5E1] px-4 text-sm font-medium text-[#475569] hover:bg-white">Cancel</button></div>
         </div>}
@@ -146,10 +150,10 @@ export default function ProfileForm({ profile }: Props) {
     </div>
 
     <Section title="Personal Information">
-      <Field label="Name" name="name" value={values.name} onChange={setField} required />
-      <Field label="Gender" name="gender" value={values.gender} onChange={setField} options={[["female", "Female"], ["male", "Male"]]} required />
-      <Field label="Marital Status" name="marital_status" value={values.marital_status} onChange={setField} options={[["unmarried", "Unmarried"], ["married", "Married"], ["divorced", "Divorced"], ["widowed", "Widowed"]]} required />
-      <div><Field label="Date of Birth" name="date_of_birth" value={values.date_of_birth} onChange={setField} type="date" required />{parseResult?.warnings.map((warning) => <p key={warning} className="mt-1.5 text-xs leading-5 text-[#8F5D14]">{warning}</p>)}</div>
+      <Field label="Name" name="name" value={values.name} onChange={setField} />
+      <Field label="Gender" name="gender" value={values.gender} onChange={setField} options={[["female", "Female"], ["male", "Male"]]} />
+      <Field label="Marital Status" name="marital_status" value={values.marital_status} onChange={setField} options={[["unmarried", "Unmarried"], ["married", "Married"], ["divorced", "Divorced"], ["widowed", "Widowed"]]} />
+      <Field label="Age" name="age" value={values.age} onChange={setField} type="number" min={0} max={120} step={1} />
       <Field label="Height" name="height" value={values.height} onChange={setField} />
       <Field label="Sect" name="sect" value={values.sect} onChange={setField} />
       <Field label="Caste" name="caste" value={values.caste} onChange={setField} />
