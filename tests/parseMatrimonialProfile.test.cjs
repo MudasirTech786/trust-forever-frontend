@@ -288,6 +288,95 @@ test("candidate age, DOB conversion, and partner age limits remain separate", ()
   assert.match(partner.data.partner_requirements, /Age Limit: 25 to 30/);
 });
 
+function ageOn(dateOfBirth, now = new Date()) {
+  const [year, month, day] = dateOfBirth.split("-").map(Number);
+  return String(now.getFullYear() - year - (now.getMonth() + 1 < month || (now.getMonth() + 1 === month && now.getDate() < day) ? 1 : 0));
+}
+
+test("DOB date orders are explicit when possible and ambiguous dates are flagged", () => {
+  const today = new Date();
+  const iso = parse("DOB: 1995-12-25");
+  assert.equal(iso.data.age, ageOn("1995-12-25", today));
+  assert.equal(parse("DOB: 12-25-1995").data.age, iso.data.age);
+  assert.equal(parse("DOB: 25-08-1995").data.age, ageOn("1995-08-25", today));
+  assert.equal(parse("DOB: 25/08/1995").data.age, ageOn("1995-08-25", today));
+  assert.equal(parse("DOB: 1995/12/25").data.age, iso.data.age);
+  assert.equal(parse("DOB: 10-08-1995").data.age, undefined);
+  const ambiguous = parse("1️⃣ DOB: 05-08-1995");
+  assert.equal(ambiguous.data.age, undefined);
+  assert.match(ambiguous.warnings.join(" "), /ambiguous/i);
+  assert.equal(parse("Age: 27\nDOB: 05-08-1995").data.age, "27");
+});
+
+test("invalid and future DOB values never produce an age", () => {
+  for (const dob of ["31-02-1995", "13-13-1995", "1995-02-29", "11/1997", "2999-01-01"]) {
+    assert.equal(parse(`Date of Birth: ${dob}`).data.age, undefined, dob);
+  }
+});
+
+const jahangeerAhmedProfile = `IMB 24477
+
+1️⃣ PERSONAL INFORMATION
+Gender: Male
+Name:Jahangeer Ahmed
+Marital Status: single
+DOB: 5-aug-1995
+Height: 6 feet
+Qualification: B. Com
+
+3️⃣ OCCUPATION DETAIL:
+Job/Business:Business(pharmacy)
+
+4️⃣ RELIGION DETAILS:
+Religion: Islam
+Sect: sunni
+Cast: sheikh
+
+5️⃣ RESIDANCE DETAILS:
+Home Own/On Rent:rent+own 10 marla plot
+Size: 10 marla
+City:Lahore
+Address: House no P 33 Marghazar Officers colony Lahore
+Nationality :Pakistani
+
+6️⃣ FAMILY DETAILS:
+Father's Occupation private job
+Mother Occupation house wife
+Brothers: 1
+Sisters: 2
+Married: 1 sister
+
+7️⃣ YOUR REQUIREMENTS:
+Height 5'7
+Ability :cooking
+Education :graduation
+WhatsApp +92 322 4994861
+Contact no 03204634735`;
+
+test("complete Jahangeer Ahmed profile maps DOB age through the UI field and save payload", () => {
+  const result = parse(jahangeerAhmedProfile, new Date(2026, 9, 28, 12));
+  assert.equal(result.data.name, "Jahangeer Ahmed");
+  assert.equal(result.data.gender, "male");
+  assert.equal(result.data.age, "31");
+  assert.equal(JSON.stringify(result.data).includes("24477"), false);
+
+  // Mirrors ProfileForm.fillFromParsedProfile and its controlled values.age binding.
+  const formState = { name: "", age: "", gender: "" };
+  const manuallyEditedFields = new Set();
+  const mappedState = { ...formState, ...Object.fromEntries(Object.entries(result.data).filter(([key]) => !manuallyEditedFields.has(key))) };
+  assert.equal(mappedState.age, "31");
+
+  // Mirrors ProfileForm.handleSubmit, which serializes every state entry into FormData.
+  const payload = new Map(Object.entries(mappedState));
+  assert.equal(payload.get("age"), "31");
+});
+
+test("text month DOB accepts abbreviated, full, hyphenated, and year-first forms", () => {
+  for (const dob of ["5-aug-1995", "05-Aug-1995", "5 August 1995", "5-August-1995", "1995-08-05"]) {
+    assert.equal(parse(`Date of Birth : ${dob}`).data.age, "31", dob);
+  }
+});
+
 test("Maria Saeed mappings keep education, contacts, and sibling counts in their fields", () => {
   const result = parse(mariaSaeedExact);
   assert.equal(result.data.sect, "Ahl e Hadees");

@@ -10,6 +10,7 @@ export type MatrimonialProfileParseResult = {
   data: Partial<Record<ProfileFormKey, string>>;
   detected: string[];
   unrecognized: string[];
+  warnings: string[];
 };
 
 type Definition = { key: ProfileFormKey; label: string };
@@ -56,36 +57,43 @@ const headings = new Set(["personal information", "personal details", "address",
 const sectionAliases: Record<string, ProfileFormKey | null> = { "life partner requirements": "partner_requirements", "partner requirements": "partner_requirements", requirements: "partner_requirements" };
 const dobLabels = new Set(["dob", "date of birth", "birth date"]);
 
-function parseDate(value: string): string | null {
+function parseDate(value: string): { date: string | null; ambiguous: boolean } {
   const trimmed = value.trim().replace(/^as\s+per\s+id\s+card\s*[:, -]*/i, "");
-  let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(trimmed);
+  let match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(trimmed);
   let year: number, month: number, day: number;
   if (match) { year = +match[1]; month = +match[2]; day = +match[3]; }
   else {
     match = /^(\d{1,2})\s*[-/.]\s*(\d{1,2})\s*[-/.]\s*(\d{4})$/.exec(trimmed);
-    if (match) { day = +match[1]; month = +match[2]; year = +match[3]; }
+    if (match) {
+      const first = +match[1], second = +match[2];
+      year = +match[3];
+      if (first <= 12 && second <= 12) return { date: null, ambiguous: true };
+      if (first > 12 && second <= 12) { day = first; month = second; }
+      else if (second > 12 && first <= 12) { month = first; day = second; }
+      else return { date: null, ambiguous: false };
+    }
     else {
-      match = /^(\d{1,2})\s+([a-z]+)\s+(\d{4})$/i.exec(trimmed);
-      if (!match) return null;
+      match = /^(\d{1,2})\s*[-/. ]\s*([a-z]+)\s*[-/. ]\s*(\d{4})$/i.exec(trimmed);
+      if (!match) return { date: null, ambiguous: false };
       day = +match[1]; year = +match[3];
       month = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"].findIndex((m) => m === match![2].toLowerCase() || (match![2].length >= 3 && m.startsWith(match![2].toLowerCase()))) + 1;
-      if (!month) return null;
+      if (!month) return { date: null, ambiguous: false };
     }
   }
   const date = new Date(Date.UTC(year, month - 1, day));
-  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : null;
+  const valid = date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+  return { date: valid ? `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : null, ambiguous: false };
 }
-function ageFromDate(value: string): string | null {
+function ageFromDate(value: string, today = new Date()): { age: string | null; ambiguous: boolean } {
   const parsed = parseDate(value);
-  if (!parsed) return null;
-  const [year, month, day] = parsed.split("-").map(Number);
-  const today = new Date();
+  if (!parsed.date) return { age: null, ambiguous: parsed.ambiguous };
+  const [year, month, day] = parsed.date.split("-").map(Number);
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
   const currentDay = today.getDate();
   let age = currentYear - year;
   if (currentMonth < month || (currentMonth === month && currentDay < day)) age -= 1;
-  return age >= 0 ? String(age) : null;
+  return { age: age >= 0 && year <= currentYear ? String(age) : null, ambiguous: false };
 }
 
 function parseSiblingCount(value: string): { count: string; details?: string } {
@@ -151,9 +159,9 @@ function parseContactLine(line: string): { key: ProfileFormKey; value: string } 
   return null;
 }
 
-export function parseMatrimonialProfileText(text: string): MatrimonialProfileParseResult {
+export function parseMatrimonialProfileText(text: string, referenceDate = new Date()): MatrimonialProfileParseResult {
   const data: Partial<Record<ProfileFormKey, string>> = {};
-  const detected = new Set<string>(), unrecognized: string[] = [];
+  const detected = new Set<string>(), unrecognized: string[] = [], warnings: string[] = [];
   const normalizedText = text
     .replace(/\\(?=\r?\n)/g, "")
     .replace(/\\r\\n|\\n|\\r/g, "\n")
@@ -180,7 +188,7 @@ export function parseMatrimonialProfileText(text: string): MatrimonialProfilePar
     }
     const { rawLabel, value } = splitField(line);
     const hasSeparator = /[:：=]/.test(line);
-    const label = normalizeLabel(rawLabel);
+    const label = normalizeLabel(rawLabel).replace(/^(?:\d+\s+)+/, "");
     if (headings.has(label)) { flushUnknown(); currentKey = sectionAliases[label] ?? null; whatsappSection = label.includes("whatsapp"); requirementsSection = currentKey === "partner_requirements"; if (currentKey && value) append(currentKey, value); continue; }
     if (whatsappSection && ["father", "mother", "parents", "profile"].includes(label)) {
       const key = label === "father" ? "father_whatsapp" : label === "mother" ? "mother_whatsapp" : label === "profile" ? "whatsapp_number" : "parents_whatsapp";
@@ -194,9 +202,10 @@ export function parseMatrimonialProfileText(text: string): MatrimonialProfilePar
         append("partner_requirements", `${rawLabel}: ${value}`);
         currentKey = "partner_requirements";
       } else if (value) {
-        const calculatedAge = ageFromDate(value);
-        if (calculatedAge !== null) derivedAge = calculatedAge;
-        if (calculatedAge !== null) detected.add("Age");
+        const result = ageFromDate(value, referenceDate);
+        if (result.age !== null) derivedAge = result.age;
+        if (result.age !== null) detected.add("Age");
+        if (result.ambiguous) warnings.push(`DOB “${value}” is ambiguous; use YYYY-MM-DD or a date with an unambiguous day/month.`);
       }
       continue;
     }
@@ -243,5 +252,5 @@ export function parseMatrimonialProfileText(text: string): MatrimonialProfilePar
   flushUnknown();
   if (explicitAge !== undefined) data.age = explicitAge;
   else if (derivedAge !== undefined) data.age = derivedAge;
-  return { data, detected: [...detected], unrecognized };
+  return { data, detected: [...detected], unrecognized, warnings };
 }
