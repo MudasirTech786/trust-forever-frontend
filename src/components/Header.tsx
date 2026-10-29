@@ -28,6 +28,8 @@ export default function Header({
       ? "ROLES & PERMISSIONS"
     : pathname === "/dashboard/users"
       ? "USERS"
+    : pathname === "/dashboard/profile-format-converter"
+      ? "PROFILE FORMATER"
       : pathname === "/dashboard/edit-profile"
         ? "EDIT PROFILE"
         : "PROFILES";
@@ -37,6 +39,8 @@ export default function Header({
       ? "Manage administrator roles and access"
       : pathname === "/dashboard/users"
         ? "Manage registered users"
+      : pathname === "/dashboard/profile-format-converter"
+        ? "Standardize pasted matrimonial profile text"
         : pathname === "/dashboard/edit-profile"
           ? "Manage your administrator profile"
           : "Manage registered profiles";

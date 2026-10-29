@@ -11,6 +11,8 @@ export type MatrimonialProfileParseResult = {
   detected: string[];
   unrecognized: string[];
   warnings: string[];
+  dob?: string;
+  ageExplicit?: boolean;
 };
 
 type Definition = { key: ProfileFormKey; label: string };
@@ -23,7 +25,7 @@ add("gender", "Gender", ["gender", "sex"]);
 add("marital_status", "Marital status", ["marital status", "martial status", "marital", "martial", "single married widow divorced", "single/married/widow/divorced"]);
 add("age", "Age", ["age", "candidate age", "candidate's age", "profile age", "age of candidate", "bride age", "groom age", "boy age", "girl age"]);
 add("height", "Height", ["height", "hight"]);
-add("sect", "Sect", ["sect", "maslak", "sect maslak", "school of thought"]);
+add("sect", "Sect", ["sect", "maslak", "sect maslak", "maslak/sect", "school of thought"]);
 add("caste", "Caste", ["cast", "caste"]);
 add("language", "Language", ["language", "mother tongue", "mother lang", "lang"]);
 add("qualification", "Qualification", ["qualification", "qualifications", "education", "education details"]);
@@ -50,12 +52,14 @@ add("other_details", "Other details", ["married", "other properties if any", "ho
 add("partner_requirements", "Partner requirements", ["requirements", "requirement", "demands", "any demands", "any other demand", "partner requirements", "life partner requirements", "life partner requirement", "looking for overseas"]);
 add("father_whatsapp", "Father's WhatsApp", ["father whatsapp", "father phone", "father phone number", "father contact number"]);
 add("mother_whatsapp", "Mother's WhatsApp", ["mother whatsapp", "mother phone", "mother phone number", "mother contact number"]);
-add("whatsapp_number", "WhatsApp number", ["whatsapp number", "whatsapp nbr", "personal whatsapp number", "contact number", "contact numbers", "cell number", "phone number", "mobile number", "candidate contact"]);
-add("parents_whatsapp", "Parents WhatsApp", ["parents whatsapp", "parents whatsapp number", "parents number", "parent number", "parents phone", "parents contact number"]);
+add("whatsapp_number", "WhatsApp number", ["whatsapp number", "whatsapp nbr", "personal whatsapp number", "contact no", "contact number", "contact numbers", "cell number", "phone number", "mobile number", "candidate contact"]);
+add("parents_whatsapp", "Parents WhatsApp", ["parents whatsapp", "parents whatsapp number", "parents whatsapp nbrs", "parents whatsapp nbr", "parents number", "parent number", "parents phone", "parents contact number"]);
 
-const headings = new Set(["personal information", "personal details", "address", "requirements", "candidate info", "candidate s info", "candidates info", "family details", "family detail", "family information", "parents details", "home details", "residence details", "residance details", "education details", "occupation detail", "occupation details", "religion details", "life partner requirements", "partner requirements", "parents whatsapp numbers", "parent whatsapp numbers", "whatsapp contacts"]);
-const sectionAliases: Record<string, ProfileFormKey | null> = { "life partner requirements": "partner_requirements", "partner requirements": "partner_requirements", requirements: "partner_requirements" };
-const dobLabels = new Set(["dob", "date of birth", "birth date"]);
+const headings = new Set(["personal information", "personal details", "address", "requirements", "your requirements", "candidate info", "candidate s info", "candidates info", "family details", "family detail", "family information", "parents details", "home details", "residence details", "residance details", "education details", "occupation detail", "occupation details", "religion details", "life partner requirements", "partner requirements", "parents whatsapp numbers", "parent whatsapp numbers", "whatsapp contacts"]);
+const sectionAliases: Record<string, ProfileFormKey | null> = { "life partner requirements": "partner_requirements", "partner requirements": "partner_requirements", requirements: "partner_requirements", "your requirements": "partner_requirements" };
+// Keep DOB recognition tied to a complete field label. normalizeLabel folds
+// case and turns spacing, punctuation, hyphens, and underscores into spaces.
+const dobLabels = new Set(["dob", normalizeLabel("date of birth"), normalizeLabel("birth date")]);
 
 function parseDate(value: string): { date: string | null; ambiguous: boolean } {
   const trimmed = value.trim().replace(/^as\s+per\s+id\s+card\s*[:, -]*/i, "");
@@ -84,16 +88,40 @@ function parseDate(value: string): { date: string | null; ambiguous: boolean } {
   const valid = date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
   return { date: valid ? `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : null, ambiguous: false };
 }
-function ageFromDate(value: string, today = new Date()): { age: string | null; ambiguous: boolean } {
+type DobAgeResult = { age: string | null; ambiguous: boolean; valid: boolean };
+function ageFromDate(value: string, today = new Date()): DobAgeResult {
   const parsed = parseDate(value);
-  if (!parsed.date) return { age: null, ambiguous: parsed.ambiguous };
-  const [year, month, day] = parsed.date.split("-").map(Number);
+  let year: number, month: number, day: number | undefined;
+  if (parsed.date) [year, month, day] = parsed.date.split("-").map(Number);
+  else {
+    if (parsed.ambiguous) return { age: null, ambiguous: true, valid: false };
+    const trimmed = value.trim();
+    const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+    let partial: RegExpExecArray | null;
+    let namedMonth = "";
+    if ((partial = /^(\d{1,2})\s*[-/.]\s*(\d{4})$/.exec(trimmed))) {
+      month = +partial[1]; year = +partial[2];
+    } else if ((partial = /^(\d{4})\s*[-/.]\s*(\d{1,2})$/.exec(trimmed))) {
+      year = +partial[1]; month = +partial[2];
+    } else if ((partial = /^([a-z]+)\s+(\d{4})$/i.exec(trimmed))) {
+      namedMonth = partial[1].toLowerCase(); year = +partial[2];
+      month = monthNames.findIndex((name) => name === namedMonth || (namedMonth.length >= 3 && name.startsWith(namedMonth))) + 1;
+    } else if ((partial = /^(\d{4})$/.exec(trimmed))) {
+      year = +partial[1]; month = 0;
+    } else return { age: null, ambiguous: false, valid: false };
+    if (year < 1 || year > today.getFullYear() || (month !== 0 && (month < 1 || month > 12))) return { age: null, ambiguous: false, valid: false };
+    if (month === 0) return { age: null, ambiguous: false, valid: true };
+    if (today.getMonth() + 1 === month) return { age: null, ambiguous: false, valid: true };
+    const partialAge = today.getFullYear() - year - (today.getMonth() + 1 < month ? 1 : 0);
+    return { age: partialAge >= 0 ? String(partialAge) : null, ambiguous: false, valid: partialAge >= 0 };
+  }
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
   const currentDay = today.getDate();
   let age = currentYear - year;
-  if (currentMonth < month || (currentMonth === month && currentDay < day)) age -= 1;
-  return { age: age >= 0 && year <= currentYear ? String(age) : null, ambiguous: false };
+  if (currentMonth < month || (currentMonth === month && currentDay < (day ?? 1))) age -= 1;
+  const valid = age >= 0 && year <= currentYear;
+  return { age: valid ? String(age) : null, ambiguous: false, valid };
 }
 
 function parseSiblingCount(value: string): { count: string; details?: string } {
@@ -125,7 +153,7 @@ function prepareLine(raw: string): string {
 }
 
 function splitField(line: string): { rawLabel: string; value: string } {
-  const cleaned = line.replace(/\\(?=\*)/g, "").replace(/\*+/g, "").trim();
+  const cleaned = stripDecorations(line.replace(/\\(?=\*)/g, "").replace(/\*+/g, "").trim()).replace(/^\d+\s*[.)]?\s*/, "");
   const colon = cleaned.search(/[:：=]/);
   if (colon >= 0) return { rawLabel: cleaned.slice(0, colon).trim(), value: cleaned.slice(colon + 1).trim() };
 
@@ -137,6 +165,16 @@ function splitField(line: string): { rawLabel: string; value: string } {
   }
 
   const normalized = normalizeLabel(cleaned);
+  // DOB is also commonly pasted without a colon (for example, "Date of birth 25/12/1993").
+  // Match only a complete leading DOB label so similar text in prose is left alone.
+  for (const alias of [...dobLabels].sort((a, b) => b.length - a.length)) {
+    if (normalized !== alias && !normalized.startsWith(`${alias} `)) continue;
+    for (let end = 1; end <= cleaned.length; end += 1) {
+      if (normalizeLabel(cleaned.slice(0, end)) === alias && (end === cleaned.length || /[\s,:;=\-]/.test(cleaned[end]))) {
+        return { rawLabel: cleaned.slice(0, end).trim(), value: cleaned.slice(end).replace(/^[\s,:;=\-]+/, "").trim() };
+      }
+    }
+  }
   for (const alias of [...definitions.keys()].sort((a, b) => b.length - a.length)) {
     if (normalized !== alias && !normalized.startsWith(`${alias} `)) continue;
     for (let end = 1; end <= cleaned.length; end += 1) {
@@ -159,6 +197,11 @@ function parseContactLine(line: string): { key: ProfileFormKey; value: string } 
   return null;
 }
 
+function extractPhoneNumbers(value: string): string[] {
+  const matches = value.match(/(?:\+?92[\s().-]*3\d{2}[\s().-]*\d{7}|0?3\d{2}[\s().-]*\d{7})/g) ?? [];
+  return matches.map((phone) => phone.replace(/[\s().-]+/g, " ").trim());
+}
+
 export function parseMatrimonialProfileText(text: string, referenceDate = new Date()): MatrimonialProfileParseResult {
   const data: Partial<Record<ProfileFormKey, string>> = {};
   const detected = new Set<string>(), unrecognized: string[] = [], warnings: string[] = [];
@@ -170,14 +213,39 @@ export function parseMatrimonialProfileText(text: string, referenceDate = new Da
     .replace(/\r\n?/g, "\n");
   const lines = normalizedText.split("\n");
   let currentKey: ProfileFormKey | null = null, unknown = "";
-  let whatsappSection = false, requirementsSection = false;
-  let explicitAge: string | undefined, derivedAge: string | undefined;
+  let whatsappSection = false, requirementsSection = false, genericContactBlock = false, educationSection = false;
+  let explicitAge: string | undefined, derivedAge: string | undefined, dob: string | undefined;
   const flushUnknown = (): void => { if (unknown.trim()) unrecognized.push(unknown.trim()); unknown = ""; };
   const append = (key: ProfileFormKey, value: string): void => { if (value) data[key] = data[key] ? `${data[key]}\n${value}` : value; };
+  const assignPhone = (phone: string, requestedKey?: ProfileFormKey, uncertainOwner = false): void => {
+    const contactKeys: ProfileFormKey[] = ["whatsapp_number", "parents_whatsapp", "father_whatsapp", "mother_whatsapp"];
+    const key = requestedKey && !data[requestedKey] ? requestedKey : contactKeys.find((candidate) => !data[candidate]);
+    if (!key) { warnings.push(`Additional contact number “${phone}” could not fit in an unused contact field.`); return; }
+    data[key] = phone;
+    if (requestedKey && key !== requestedKey) warnings.push(`Contact number “${phone}” was kept separately in ${key}; its owner is unclear.`);
+    else if (uncertainOwner) warnings.push(`Contact number “${phone}” was kept separately in ${key}; its owner is unclear.`);
+  };
 
   for (const rawLine of lines) {
     const line = prepareLine(rawLine);
     if (!line || isReferenceLine(line) || /^(?:i\s+pay\s+witness|i\s+hereby\s+declare|declaration\b|witness\b)/i.test(line)) continue;
+    const contactMatch = /^\s*(father(?:'s)?|mother(?:'s)?|parents?|big\s+sister|sister|contact(?:\s+no\.?)?|whatsapp|cell\s+number|mobile\s+number|phone\s+number|parents\s+whatsapp\s+nbrs?)\s*[:：=\-]?\s*(.*)$/i.exec(line);
+    if (contactMatch) {
+      const label = normalizeLabel(contactMatch[1]);
+      const value = contactMatch[2];
+      const nestedGeneric = /(?:^|\b)contact(?:\s+no\.?)?\s*[:：=\-]/i.test(value);
+      const key = label.startsWith("father") ? "father_whatsapp" : label.startsWith("mother") ? "mother_whatsapp" : label.startsWith("parent") ? "parents_whatsapp" : label === "big sister" || label === "sister" ? "whatsapp_number" : undefined;
+      const phones = extractPhoneNumbers(value);
+      if (label.startsWith("parent") || label === "contact" || label.startsWith("whatsapp") || label === "cell number" || label === "mobile number" || label === "phone number") genericContactBlock = true;
+      if (phones.length) phones.forEach((phone, index) => assignPhone(phone, nestedGeneric ? undefined : index === 0 ? key : undefined, nestedGeneric || (!key && index > 0)));
+      else if (!value.trim()) genericContactBlock = true;
+      if (phones.length || !value.trim()) { currentKey = key ?? "parents_whatsapp"; continue; }
+    }
+    const barePhones = extractPhoneNumbers(line);
+    if (barePhones.length && (genericContactBlock || ["whatsapp_number", "parents_whatsapp", "father_whatsapp", "mother_whatsapp"].includes(currentKey ?? ""))) {
+      barePhones.forEach((phone) => assignPhone(phone, undefined, genericContactBlock));
+      continue;
+    }
     const phone = parseContactLine(line);
     if (phone) {
       if (phone.key === "other_details") append(phone.key, phone.value);
@@ -186,26 +254,58 @@ export function parseMatrimonialProfileText(text: string, referenceDate = new Da
       detected.add(phone.key === "mother_whatsapp" ? "Mother's WhatsApp" : phone.key === "father_whatsapp" ? "Father's WhatsApp" : phone.key === "parents_whatsapp" ? "Parents WhatsApp" : "WhatsApp number");
       continue;
     }
-    const { rawLabel, value } = splitField(line);
+    const parsedField = splitField(line);
+    let rawLabel = parsedField.rawLabel;
+    const value = parsedField.value;
+    const normalizedWholeLine = normalizeLabel(line);
+    const numberedHeading = /^\d/.test(normalizedWholeLine) && [...headings].find((heading) => normalizedWholeLine.endsWith(heading));
+    if (numberedHeading && !value) rawLabel = numberedHeading;
     const hasSeparator = /[:：=]/.test(line);
-    const label = normalizeLabel(rawLabel).replace(/^(?:\d+\s+)+/, "");
-    if (headings.has(label)) { flushUnknown(); currentKey = sectionAliases[label] ?? null; whatsappSection = label.includes("whatsapp"); requirementsSection = currentKey === "partner_requirements"; if (currentKey && value) append(currentKey, value); continue; }
+    const normalizedRawLabel = normalizeLabel(rawLabel);
+    let label = normalizedRawLabel.replace(/^\d+\s*/, "");
+    const sectionLabel = [...headings].find((heading) => label === heading || (/^\d/.test(normalizedRawLabel) && normalizedRawLabel.endsWith(` ${heading}`)));
+    if (sectionLabel) label = sectionLabel;
+    if (headings.has(label)) { flushUnknown(); educationSection = label === "education details"; currentKey = sectionAliases[label] ?? (educationSection ? "qualification" : null); whatsappSection = label.includes("whatsapp"); genericContactBlock = label.includes("whatsapp"); requirementsSection = currentKey === "partner_requirements"; if (currentKey && value) append(currentKey, value); continue; }
     if (whatsappSection && ["father", "mother", "parents", "profile"].includes(label)) {
       const key = label === "father" ? "father_whatsapp" : label === "mother" ? "mother_whatsapp" : label === "profile" ? "whatsapp_number" : "parents_whatsapp";
-      if (value) { append(key, value); detected.add(key === "father_whatsapp" ? "Father's WhatsApp" : key === "mother_whatsapp" ? "Mother's WhatsApp" : key === "whatsapp_number" ? "WhatsApp number" : "Parents WhatsApp"); }
+      const numbers = extractPhoneNumbers(value);
+      if (numbers.length) numbers.forEach((number) => assignPhone(number, key));
+      if (value) detected.add(key === "father_whatsapp" ? "Father's WhatsApp" : key === "mother_whatsapp" ? "Mother's WhatsApp" : key === "whatsapp_number" ? "WhatsApp number" : "Parents WhatsApp");
       currentKey = null; continue;
     }
     const partnerPrefixed = /^(?:partner(?:'s)?|preferred|required)\s+/i.test(rawLabel);
     const def = partnerPrefixed ? undefined : definitions.get(label);
+    if (label === "father" && value) {
+      if (/\b(?:own\s+business|business|shop|farmer|farming|job|occupation|employee|retired|doctor|teacher|engineer|driver|worker|service|late)\b/i.test(value)) {
+        append("father_occupation", value);
+        detected.add("Father occupation");
+      } else {
+        append("father_details", `Father: ${value}`);
+        warnings.push(`“Father: ${value}” was kept as father details because its role is unclear.`);
+      }
+      currentKey = null;
+      continue;
+    }
+    if (currentKey === "other_details" && /^age$/i.test(label) && value) {
+      const candidateAge = /^(\d{1,3})(?:\s*(?:years?|yrs?))?$/i.exec(value.trim());
+      if (candidateAge && Number(candidateAge[1]) <= 120) explicitAge = candidateAge[1];
+      continue;
+    }
     if (dobLabels.has(label) || (/^(?:candidate(?:'s)?\s+)?age(?:\s+of\s+candidate)?$/.test(label) && requirementsSection)) {
       if (requirementsSection) {
         append("partner_requirements", `${rawLabel}: ${value}`);
         currentKey = "partner_requirements";
       } else if (value) {
         const result = ageFromDate(value, referenceDate);
+        if (result.valid) {
+          dob = value.trim();
+        }
         if (result.age !== null) derivedAge = result.age;
         if (result.age !== null) detected.add("Age");
         if (result.ambiguous) warnings.push(`DOB “${value}” is ambiguous; use YYYY-MM-DD or a date with an unambiguous day/month.`);
+        else if (!result.valid) warnings.push(`DOB “${value}” is invalid or in the future and was not used.`);
+        else if (result.age === null && /^\d{4}$/.test(value.trim())) warnings.push(`DOB “${value}” has year-only precision, so an age was not calculated.`);
+        else if (result.age === null) warnings.push(`DOB “${value}” is missing the day and falls in the current birth month, so an exact age was not calculated.`);
       }
       continue;
     }
@@ -223,12 +323,22 @@ export function parseMatrimonialProfileText(text: string, referenceDate = new Da
     if (def) {
       flushUnknown(); currentKey = def.key;
       whatsappSection = false;
+      if (def.key === "parents_whatsapp") genericContactBlock = true;
+      if (["father_whatsapp", "mother_whatsapp", "whatsapp_number"].includes(def.key)) {
+        const phones = extractPhoneNumbers(value);
+        if (phones.length) phones.forEach((number, index) => assignPhone(number, index === 0 ? def.key : undefined));
+        continue;
+      }
       if (!value) continue;
       if (def.key === "partner_requirements") append(def.key, `${rawLabel}: ${value}`);
       else if (def.key === "age") {
         const candidateAge = /^(\d{1,3})(?:\s*(?:years?|yrs?))?$/i.exec(value.trim());
         if (candidateAge && Number(candidateAge[1]) <= 120) explicitAge = candidateAge[1];
         else continue;
+      } else if (def.key === "other_details") {
+        const labeledAge = /(?:^|\n)\s*age\s*[:=]\s*(\d{1,3})(?:\s*(?:years?|yrs?))?\s*$/i.exec(value);
+        if (labeledAge && Number(labeledAge[1]) <= 120) explicitAge = labeledAge[1];
+        append(def.key, `${rawLabel}: ${value}`);
       } else if (def.key === "gender") data.gender = ({ female: "female", woman: "female", male: "male", man: "male" } as Record<string, string>)[normalizeLabel(value)] ?? value;
       else if (def.key === "marital_status") data.marital_status = ({ unmarried: "unmarried", single: "unmarried", married: "married", divorced: "divorced", divorce: "divorced", widow: "widowed", widower: "widowed", widowed: "widowed" } as Record<string, string>)[normalizeLabel(value)] ?? value;
       else if (def.key === "sisters_count" || def.key === "brothers_count") {
@@ -238,6 +348,12 @@ export function parseMatrimonialProfileText(text: string, referenceDate = new Da
       else if (["father_details", "mother_details", "other_details", "brothers_details", "sisters_details"].includes(def.key)) append(def.key, `${rawLabel}: ${value}`);
       else append(def.key, value);
       detected.add(def.label); continue;
+    }
+    if (educationSection && value === "" && !hasSeparator) {
+      append("qualification", line);
+      detected.add("Qualification");
+      currentKey = "qualification";
+      continue;
     }
     // Explicit partner-specific attributes stay in the partner narrative and never overwrite candidate fields.
     if (partnerPrefixed) {
@@ -252,5 +368,5 @@ export function parseMatrimonialProfileText(text: string, referenceDate = new Da
   flushUnknown();
   if (explicitAge !== undefined) data.age = explicitAge;
   else if (derivedAge !== undefined) data.age = derivedAge;
-  return { data, detected: [...detected], unrecognized, warnings };
+  return { data, detected: [...detected], unrecognized, warnings, ...(dob ? { dob } : {}), ...(explicitAge !== undefined ? { ageExplicit: true } : {}) };
 }

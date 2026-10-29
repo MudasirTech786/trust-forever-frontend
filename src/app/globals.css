@@ -55,3 +55,65 @@ body {
     transform: scale(1);
   }
 }
+
+@keyframes profile-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.65rem, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes converter-orbit {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes converter-breathe {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.94);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes converter-drift {
+  0%, 100% {
+    opacity: 0.35;
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: translate3d(0.35rem, -0.55rem, 0);
+  }
+}
+
+@keyframes converter-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.45rem, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}

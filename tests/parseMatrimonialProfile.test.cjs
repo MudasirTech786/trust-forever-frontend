@@ -210,7 +210,8 @@ const fixtures = [
     text: "IMB 20593\n\ud83d\udd3a Gender: Male\n\ud83d\udd3a Date of Birth: 11/1997\n\ud83d\udd3a Cast: Rajput\n\ud83d\udd3a Father Name: Ali\n\ud83d\udd3a Contact Person: Uncle\n\ud83d\udd3a Contact Number: 03001234567",
     check(result) {
       assert.equal(result.data.gender, "male");
-      assert.equal(result.data.age, undefined);
+      assert.equal(result.dob, "11/1997");
+      assert.equal(result.data.age, new Date().getMonth() === 10 ? undefined : String(new Date().getFullYear() - 1997 - (new Date().getMonth() + 1 < 11 ? 1 : 0)));
       assert.match(result.data.other_details, /Contact Person: Uncle/);
       assert.equal(result.data.whatsapp_number, "03001234567");
       assert.equal(JSON.stringify(result.data).includes("20593"), false);
@@ -276,7 +277,8 @@ for (const fixture of fixtures) {
 test("empty values do not become parsed form values and incomplete DOB is retained for review", () => {
   const result = parse("Name:\nDate of Birth: 11/1997\nGender: Female");
   assert.equal(result.data.name, undefined);
-  assert.equal(result.data.age, undefined);
+  assert.equal(result.dob, "11/1997");
+  assert.equal(result.data.age, new Date().getMonth() === 10 ? undefined : String(new Date().getFullYear() - 1997 - (new Date().getMonth() + 1 < 11 ? 1 : 0)));
   assert.equal(result.data.gender, "female");
 });
 
@@ -309,7 +311,7 @@ test("DOB date orders are explicit when possible and ambiguous dates are flagged
 });
 
 test("invalid and future DOB values never produce an age", () => {
-  for (const dob of ["31-02-1995", "13-13-1995", "1995-02-29", "11/1997", "2999-01-01"]) {
+  for (const dob of ["31-02-1995", "13-13-1995", "1995-02-29", "2999-01-01"]) {
     assert.equal(parse(`Date of Birth: ${dob}`).data.age, undefined, dob);
   }
 });
