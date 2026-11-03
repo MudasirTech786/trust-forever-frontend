@@ -154,7 +154,7 @@ export default function EditProfilePage() {
             <p className="block text-sm font-medium text-[#334155]">Profile Picture</p>
             <div className="mt-2 flex flex-wrap items-center gap-4">
               <div className="relative flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#E8E0D0] bg-[#FBF8EF] text-[#9A7625]">
-                <ProfilePhoto src={displayedPicture} alt="Profile picture preview" fill sizes="96px" className="object-cover" />
+                <ProfilePhoto src={displayedPicture} alt="Profile picture preview" fill sizes="96px" downloadable={false} className="object-cover" />
               </div>
               <div>
                 <label htmlFor="profile-picture" className="inline-flex min-h-10 cursor-pointer items-center rounded-md border border-[#E8E0D0] bg-[#FBF9F4] px-4 text-sm font-medium text-[#0B2A4A] transition hover:border-[#C69A2B]/50 hover:bg-[#F3EBDD]">

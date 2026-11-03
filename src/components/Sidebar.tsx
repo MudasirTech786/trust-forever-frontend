@@ -30,6 +30,12 @@ const navigation = [
     icon: "profiles",
   },
   {
+    name: "Profile Groups",
+    href: "/dashboard/profile-groups",
+    icon: "profiles",
+    permission: "profiles.view",
+  },
+  {
     name: "Profile Formater",
     href: "/dashboard/profile-format-converter",
     icon: "profiles",

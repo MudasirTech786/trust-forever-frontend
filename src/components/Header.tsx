@@ -137,7 +137,7 @@ export default function Header({
           className="flex items-center gap-3 rounded-md px-1 py-1 text-left transition hover:bg-[#F7F7F5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C89B2C]"
         >
           <span aria-hidden="true" className="relative flex size-9 items-center justify-center overflow-hidden rounded-full border border-[#EAB308]/70 bg-[#0F172A] text-xs font-semibold text-[#F8FAFC] ring-2 ring-[#C89B2C] ring-offset-2 ring-offset-white">
-            <ProfilePhoto src={user?.profile_picture_url} alt="Administrator" fill sizes="36px" className="object-cover" />
+            <ProfilePhoto src={user?.profile_picture_url} alt="Administrator" fill sizes="36px" downloadable={false} className="object-cover" />
           </span>
           <span className="hidden sm:block">
             <span className="block text-sm font-medium leading-5 text-[#172033]">{headerName}</span>

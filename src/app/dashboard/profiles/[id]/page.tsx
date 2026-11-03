@@ -176,6 +176,8 @@ export default function ProfileDetailsPage() {
           <div className="absolute inset-0 overflow-hidden rounded-lg border border-[#E8E0D0] bg-[#FBF8EF]">
             <ProfilePhoto
               src={profile.profile_picture_url}
+              profileId={profile.id}
+              filenamePrefix={profile.profile_id}
               alt={profile.name || "Matrimonial profile"}
               fill
               sizes="160px"

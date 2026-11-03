@@ -6,6 +6,7 @@ import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/components/ToastProvider";
 import ProfileActionIcon from "@/components/profiles/ProfileActionIcon";
 import ProfilePhoto from "@/components/ProfilePhoto";
+import ProfilePhotoDownloadButton from "@/components/profiles/ProfilePhotoDownloadButton";
 import { ApiError, getDashboardProfileSummary, getProfile, type DashboardProfileSummary, type DashboardRecentProfile } from "@/services/rolesPermissions";
 import { shareMatrimonialProfile } from "@/lib/shareMatrimonialProfile";
 
@@ -19,7 +20,7 @@ function DashboardSkeleton() {
 function ProfileAvatar({ profile }: { profile: DashboardRecentProfile }) {
   return <div className="relative aspect-[2/1]">
     <div className="absolute inset-0 overflow-hidden rounded-t-lg bg-[#FBF8EF]">
-      <ProfilePhoto src={profile.profile_picture_url} alt={`${profile.name}'s profile`} fill sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 35vw" className="object-cover transition duration-500 group-hover:scale-[1.03]" />
+      <ProfilePhoto src={profile.profile_picture_url} profileId={profile.id} filenamePrefix={profile.profile_id} downloadable={false} alt={`${profile.name}'s profile`} fill sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 35vw" className="object-cover transition duration-500 group-hover:scale-[1.03]" />
     </div>
     <span className="absolute left-0 top-0 z-20 -translate-x-[18%] -translate-y-[18%] whitespace-nowrap rounded-md rounded-br-xl border border-[#D8C99F] bg-[#0B2A4A]/95 px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.06em] text-white shadow-[0_3px_8px_rgba(11,42,74,0.2)] backdrop-blur-sm sm:px-3 sm:text-xs">{profile.profile_id}</span>
   </div>;
@@ -30,7 +31,7 @@ function RecentProfileCard({ profile, canEdit, onShare }: { profile: DashboardRe
   const details = [profile.gender ? profile.gender[0].toUpperCase() + profile.gender.slice(1) : null, age === null ? null : `${age} years old`, profile.city].filter(Boolean);
 
   return <article className="group flex min-w-0 flex-col overflow-visible rounded-lg border border-[#E8E0D0] bg-white shadow-[0_2px_8px_rgba(23,32,51,0.035)] transition duration-200 hover:-translate-y-0.5 hover:border-[#D8C99F] hover:shadow-[0_8px_24px_rgba(23,32,51,0.09)]">
-    <Link href={`/dashboard/profiles/${profile.id}`} aria-label={`View ${profile.name}'s profile`} className="focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#C89B2C]"><ProfileAvatar profile={profile} /></Link>
+    <div className="relative"><Link href={`/dashboard/profiles/${profile.id}`} aria-label={`View ${profile.name}'s profile`} className="block focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#C89B2C]"><ProfileAvatar profile={profile} /></Link><ProfilePhotoDownloadButton profileId={profile.id} filenamePrefix={profile.profile_id} /></div>
     <div className="flex flex-1 flex-col p-4 sm:p-5">
       <Link href={`/dashboard/profiles/${profile.id}`} className="w-fit rounded-sm text-base font-semibold text-[#0B2A4A] hover:text-[#9A7625] focus-visible:outline-2 focus-visible:outline-[#C89B2C]">{profile.name}</Link>
       <p className="mt-0.5 text-xs font-medium text-[#9A7625]">Profile ID: <span className="select-all">{profile.profile_id}</span></p>

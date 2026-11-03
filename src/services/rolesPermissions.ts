@@ -82,6 +82,28 @@ export type DashboardProfileSummary = {
   recent_profiles: DashboardRecentProfile[];
 };
 
+export type ProfileGroup = { slug: string; label: string; count: number };
+export type ProfileGroupPage = {
+  profiles: MatrimonialProfile[];
+  total: number;
+  per_page: number;
+  current_page: number;
+  last_page: number;
+};
+export type ProfileGroupFilters = {
+  search?: string;
+  gender?: "male" | "female";
+  city?: string;
+  caste?: string;
+  marital_status?: MatrimonialProfile["marital_status"];
+  education?: string;
+  occupation?: string;
+  min_age?: string;
+  max_age?: string;
+  page?: number;
+  per_page?: number;
+};
+
 export type ManagedUser = {
   id: number;
   name: string;
@@ -278,13 +300,62 @@ export function updateCurrentProfile(formData: FormData): Promise<{ user: Authen
   });
 }
 
-export function listProfiles(filters: ProfileFilters = {}): Promise<{ profiles: MatrimonialProfile[] }> {
+export function listProfiles(filters: ProfileFilters & { page?: number; per_page?: number } = {}): Promise<{ profiles: MatrimonialProfile[]; total: number; per_page: number; current_page: number; last_page: number }> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
-    if (value) query.set(key, value);
+    if (value !== undefined && value !== "") query.set(key, String(value));
   }
   const suffix = query.size ? `?${query.toString()}` : "";
-  return request<{ profiles: MatrimonialProfile[] }>(`/profiles${suffix}`);
+  return request<{ profiles: MatrimonialProfile[]; total: number; per_page: number; current_page: number; last_page: number }>(`/profiles${suffix}`);
+}
+
+export function listProfileGroups(): Promise<{ groups: ProfileGroup[] }> {
+  return request<{ groups: ProfileGroup[] }>("/profile-groups");
+}
+
+export function listProfileGroupCategories(group: string): Promise<{ categories: ProfileGroup[]; cities: string[] }> {
+  return request<{ categories: ProfileGroup[]; cities: string[] }>(`/profile-groups/${encodeURIComponent(group)}/categories`);
+}
+
+export function listProfileGroupProfiles(group: string, category: string, filters: ProfileGroupFilters = {}): Promise<ProfileGroupPage> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  }
+  const suffix = query.size ? `?${query.toString()}` : "";
+  return request<ProfileGroupPage>(`/profile-groups/${encodeURIComponent(group)}/categories/${encodeURIComponent(category)}/profiles${suffix}`);
+}
+
+export async function downloadProfilePhoto(profileId: number, filenamePrefix: string, source?: string | null): Promise<void> {
+  let photoBlob: Blob;
+
+  if (source?.startsWith("blob:")) {
+    const response = await fetch(source);
+    if (!response.ok) throw new ApiError(response.status, "Unable to download this profile photo.");
+    photoBlob = await response.blob();
+  } else {
+    const response = await fetchApi(`${apiBaseUrl}/api/profiles/${profileId}/photo`, {
+      method: "GET",
+      headers: { Accept: "image/*" },
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, response.status === 403 ? "You do not have permission to download profile photos." : response.status === 404 ? "This profile does not have an available photo." : "Unable to download this profile photo.");
+    }
+    photoBlob = await response.blob();
+  }
+
+  const extension = photoBlob.type === "image/png" ? "png" : photoBlob.type === "image/webp" ? "webp" : photoBlob.type === "image/jpeg" ? "jpg" : "jpg";
+  const safePrefix = filenamePrefix.trim().replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || `profile-${profileId}`;
+  const downloadUrl = URL.createObjectURL(photoBlob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = `${safePrefix}.${extension}`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
 }
 
 export function getDashboardProfileSummary(): Promise<DashboardProfileSummary> {

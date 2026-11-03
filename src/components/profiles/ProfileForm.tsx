@@ -404,6 +404,8 @@ export default function ProfileForm({ profile }: Props) {
               <div className="relative flex size-32 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E8E0D0] bg-[#FBF8EF] text-3xl font-semibold text-[#9A7625]">
                 <ProfilePhoto
                   src={preview}
+                  profileId={profile?.id}
+                  filenamePrefix={profile?.profile_id}
                   alt="Matrimonial profile preview"
                   fill
                   sizes="128px"

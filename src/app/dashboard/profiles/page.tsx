@@ -18,7 +18,7 @@ function ProfileCard({ profile, canEdit, canDelete, onDelete, onShare }: { profi
     <div className="flex gap-4">
       <div className="relative size-24 shrink-0">
         <div className="absolute inset-0 overflow-hidden rounded-md border border-[#E8E0D0] bg-[#FBF8EF]">
-          <ProfilePhoto src={profile.profile_picture_url} alt={profile.name || "Matrimonial profile"} fill sizes="96px" className="object-cover" />
+          <ProfilePhoto src={profile.profile_picture_url} profileId={profile.id} filenamePrefix={profile.profile_id} alt={profile.name || "Matrimonial profile"} fill sizes="96px" className="object-cover" />
         </div>
         <span className="absolute left-0 top-0 z-20 -translate-x-[18%] -translate-y-[18%] whitespace-nowrap rounded-md rounded-br-xl border border-[#D8C99F] bg-[#0B2A4A]/95 px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.06em] text-white shadow-[0_3px_8px_rgba(11,42,74,0.2)] backdrop-blur-sm sm:px-3 sm:text-xs">{profile.profile_id}</span>
       </div>
@@ -55,6 +55,9 @@ export default function ProfilesPage() {
   const [gender, setGender] = useState("");
   const [maritalStatus, setMaritalStatus] = useState("");
   const [employed, setEmployed] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const perPage = 24;
   const canView = permissions.includes("profiles.view");
   const canCreate = permissions.includes("profiles.create");
   const canEdit = permissions.includes("profiles.edit");
@@ -64,8 +67,16 @@ export default function ProfilesPage() {
     setLoading(true);
     setError("");
     try {
-      const result = await listProfiles();
+      const result = await listProfiles({
+        search: search.trim(),
+        gender: gender as "male" | "female" | undefined,
+        marital_status: maritalStatus as MatrimonialProfile["marital_status"] | undefined,
+        employed: employed as "true" | "false" | undefined,
+        page,
+        per_page: perPage,
+      });
       setProfiles(result.profiles);
+      setTotal(result.total);
     } catch (loadError) {
       const message = loadError instanceof ApiError ? loadError.message : "Unable to load profiles. Please try again.";
       setError(message);
@@ -73,7 +84,7 @@ export default function ProfilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [notify]);
+  }, [notify, search, gender, maritalStatus, employed, page]);
 
   useEffect(() => {
     if (!canView) return;
@@ -81,13 +92,8 @@ export default function ProfilesPage() {
     return () => window.clearTimeout(timeoutId);
   }, [canView, loadProfiles]);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return profiles.filter((profile) => {
-      const matchesSearch = !query || [profile.profile_id, profile.name, profile.city, profile.caste, profile.qualification].some((value) => value?.toLowerCase().includes(query));
-      return matchesSearch && (!gender || profile.gender === gender) && (!maritalStatus || profile.marital_status === maritalStatus) && (!employed || String(profile.employed) === employed);
-    });
-  }, [profiles, search, gender, maritalStatus, employed]);
+  const filtered = profiles;
+  const lastPage = Math.max(1, Math.ceil(total / perPage));
 
   function confirmDelete(profile: MatrimonialProfile): void {
     requestConfirmation({
@@ -100,6 +106,7 @@ export default function ProfilesPage() {
       onConfirm: async () => {
         await deleteProfile(profile.id);
         setProfiles((current) => current.filter((item) => item.id !== profile.id));
+        setTotal((current) => Math.max(0, current - 1));
         notify({ variant: "success", title: "Profile deleted", message: `${profile.name}’s profile has been removed.` });
       },
       onError: () => notify({ variant: "error", title: "Unable to delete profile", message: "Please try again." }),
@@ -128,12 +135,12 @@ export default function ProfilesPage() {
         <label className="block text-xs font-medium text-[#64748B] xl:col-span-2">Search profiles<input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, city, caste, qualification" className="mt-1.5 min-h-10 w-full rounded-md border border-[#CBD5E1] px-3 text-sm text-[#172033] outline-none focus:border-[#C89B2C] focus:ring-2 focus:ring-[#C89B2C]/15" /></label>
         {[["Gender", gender, setGender, [["female", "Female"], ["male", "Male"]]], ["Marital status", maritalStatus, setMaritalStatus, [["unmarried", "Unmarried"], ["married", "Married"], ["divorced", "Divorced"], ["widowed", "Widowed"]]]].map(([label, value, setter, options]) => <label key={label as string} className="block text-xs font-medium text-[#64748B]">{label as string}<select value={value as string} onChange={(event) => (setter as (value: string) => void)(event.target.value)} className="mt-1.5 min-h-10 w-full rounded-md border border-[#CBD5E1] bg-white px-2 text-sm text-[#172033] outline-none focus:border-[#C89B2C]"><option value="">All</option>{(options as string[][]).map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}</select></label>)}
       </div>
-      <p className="mt-3 text-xs text-[#94A3B8]">Showing {filtered.length} of {profiles.length} profiles</p>
+      <p className="mt-3 text-xs text-[#94A3B8]">Showing {filtered.length} of {total} profiles</p>
     </section>
 
     {loading ? <LoadingCards /> : error ? <section className="rounded-lg border border-[#E8C7C2] bg-white p-8 text-center"><p className="text-sm text-[#8F3028]">Unable to load profiles. Please try again.</p><button type="button" onClick={() => void loadProfiles()} className="mt-4 min-h-10 rounded-md bg-[#0B2A4A] px-4 text-sm font-medium text-white">Try again</button></section>
-      : profiles.length === 0 ? <section className="rounded-lg border border-[#E8E0D0] bg-white px-6 py-14 text-center shadow-[0_2px_8px_rgba(23,32,51,0.035)]"><div aria-hidden="true" className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#FBF8EF] text-[#9A7625]"><svg viewBox="0 0 24 24" fill="none" className="size-7"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0m2-9a3 3 0 1 0 0-6m1 9a5 5 0 0 1 3 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></div><h2 className="mt-4 text-lg font-semibold text-[#0B2A4A]">No matrimonial profiles yet</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#64748B]">Create your first profile to start managing your matrimonial records.</p>{canCreate && <Link href="/dashboard/profiles/new" className="mt-5 inline-flex min-h-11 items-center rounded-md bg-[#0B2A4A] px-5 text-sm font-semibold text-white hover:bg-[#123E68]">Add New Profile</Link>}</section>
+      : profiles.length === 0 ? <section className="rounded-lg border border-[#E8E0D0] bg-white px-6 py-14 text-center shadow-[0_2px_8px_rgba(23,32,51,0.035)]"><div aria-hidden="true" className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#FBF8EF] text-[#9A7625]"><svg viewBox="0 0 24 24" fill="none" className="size-7"><circle cx="9" cy="8" r="3" stroke="currentColor" strokeWidth="1.5" /><path d="M3.5 20a5.5 5.5 0 0 1 11 0m2-9a3 3 0 1 0 0-6m1 9a5 5 0 0 1 3 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></div><h2 className="mt-4 text-lg font-semibold text-[#0B2A4A]">{total === 0 ? "No matrimonial profiles yet" : "No matching profiles"}</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#64748B]">{total === 0 ? "Create your first profile to start managing your matrimonial records." : "Try adjusting your search or filters."}</p>{canCreate && total === 0 && <Link href="/dashboard/profiles/new" className="mt-5 inline-flex min-h-11 items-center rounded-md bg-[#0B2A4A] px-5 text-sm font-semibold text-white hover:bg-[#123E68]">Add New Profile</Link>}</section>
         : filtered.length === 0 ? <section className="rounded-lg border border-[#E8E0D0] bg-white p-12 text-center"><h2 className="font-semibold text-[#0B2A4A]">No matching profiles</h2><p className="mt-2 text-sm text-[#64748B]">Try adjusting your search or filters.</p></section>
-          : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{filtered.map((profile) => <ProfileCard key={profile.id} profile={profile} canEdit={canEdit} canDelete={canDelete} onDelete={confirmDelete} onShare={(item) => void shareProfile(item)} />)}</div>}
+          : <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{filtered.map((profile) => <ProfileCard key={profile.id} profile={profile} canEdit={canEdit} canDelete={canDelete} onDelete={confirmDelete} onShare={(item) => void shareProfile(item)} />)}</div><div className="flex items-center justify-between rounded-lg border border-[#E8E0D0] bg-white px-4 py-3 text-sm"><span className="text-[#64748B]">Page {page} of {lastPage}</span><div className="flex gap-2"><button type="button" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))} className="min-h-9 rounded-md border border-[#CBD5E1] px-3 font-medium text-[#334155] disabled:opacity-40">Previous</button><button type="button" disabled={page >= lastPage} onClick={() => setPage((current) => Math.min(lastPage, current + 1))} className="min-h-9 rounded-md border border-[#CBD5E1] px-3 font-medium text-[#334155] disabled:opacity-40">Next</button></div></div></>}
   </div>;
 }
