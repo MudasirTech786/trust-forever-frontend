@@ -29,7 +29,7 @@ export type MatrimonialProfile = {
   profile_picture_url: string | null;
   name: string | null;
   gender: "female" | "male" | null;
-  marital_status: "unmarried" | "married" | "divorced" | "widowed" | null;
+  marital_status: "unmarried" | "married" | "divorced" | "widowed" | "nikah_broken" | null;
   age: number | null;
   height: string | null;
   sect: string | null;

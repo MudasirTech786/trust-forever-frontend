@@ -479,6 +479,7 @@ export default function ProfileForm({ profile }: Props) {
                 ["married", "Married"],
                 ["divorced", "Divorced"],
                 ["widowed", "Widowed"],
+                ["nikah_broken", "Nikah Broken"],
               ]}
             />
             <Field
