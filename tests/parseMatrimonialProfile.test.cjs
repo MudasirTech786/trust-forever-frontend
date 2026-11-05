@@ -379,6 +379,31 @@ test("text month DOB accepts abbreviated, full, hyphenated, and year-first forms
   }
 });
 
+test("ordinal and requested DOB formats calculate exact age without changing source DOB", () => {
+  const today = new Date(2026, 10, 5, 12);
+  const formats = ["Jan 15th 1990", "January 15th 1990", "Jan 15, 1990", "January 15, 1990", "15th Jan 1990", "15th January 1990", "15 January 1990", "15-Jan-1990", "1990-01-15", "15/01/1990"];
+  for (const dob of formats) {
+    const result = parse(`DOB: ${dob}`, today);
+    assert.equal(result.data.age, "36", dob);
+    assert.equal(result.dob, dob, "parser retains original DOB text");
+  }
+  for (const suffix of ["st", "nd", "rd", "th"]) {
+    const day = ({ st: 1, nd: 2, rd: 3, th: 15 })[suffix];
+    assert.ok(parse(`DOB: Jan ${day}${suffix} 1990`, today).data.age, suffix);
+  }
+  assert.equal(parse("Age: 27\nDOB: Jan 15th 1990", today).data.age, "27");
+});
+
+test("DOB errors distinguish impossible dates, future dates, ambiguous dates, and unsupported formats", () => {
+  const today = new Date(2026, 10, 5, 12);
+  assert.match(parse("DOB: February 29, 1995", today).warnings.join(" "), /impossible calendar date/i);
+  assert.match(parse("DOB: 2999-01-01", today).warnings.join(" "), /in the future/i);
+  assert.match(parse("DOB: 05-08-1995", today).warnings.join(" "), /ambiguous/i);
+  assert.match(parse("DOB: sometime around 1995", today).warnings.join(" "), /format/i);
+  assert.equal(parse("DOB: 11/1997", today).data.age, undefined);
+  assert.equal(parse("DOB: 11/1997", today).dob, "11/1997");
+});
+
 test("Maria Saeed mappings keep education, contacts, and sibling counts in their fields", () => {
   const result = parse(mariaSaeedExact);
   assert.equal(result.data.sect, "Ahl e Hadees");

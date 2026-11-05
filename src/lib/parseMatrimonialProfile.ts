@@ -61,7 +61,8 @@ const sectionAliases: Record<string, ProfileFormKey | null> = { "life partner re
 // case and turns spacing, punctuation, hyphens, and underscores into spaces.
 const dobLabels = new Set(["dob", normalizeLabel("date of birth"), normalizeLabel("birth date")]);
 
-function parseDate(value: string): { date: string | null; ambiguous: boolean } {
+type ParsedDate = { date: string | null; ambiguous: boolean; invalid: boolean };
+function parseDate(value: string): ParsedDate {
   const trimmed = value.trim().replace(/^as\s+per\s+id\s+card\s*[:, -]*/i, "");
   let match = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(trimmed);
   let year: number, month: number, day: number;
@@ -71,30 +72,34 @@ function parseDate(value: string): { date: string | null; ambiguous: boolean } {
     if (match) {
       const first = +match[1], second = +match[2];
       year = +match[3];
-      if (first <= 12 && second <= 12) return { date: null, ambiguous: true };
+      if (first <= 12 && second <= 12) return { date: null, ambiguous: true, invalid: false };
       if (first > 12 && second <= 12) { day = first; month = second; }
       else if (second > 12 && first <= 12) { month = first; day = second; }
-      else return { date: null, ambiguous: false };
+      else return { date: null, ambiguous: false, invalid: true };
     }
     else {
-      match = /^(\d{1,2})\s*[-/. ]\s*([a-z]+)\s*[-/. ]\s*(\d{4})$/i.exec(trimmed);
-      if (!match) return { date: null, ambiguous: false };
-      day = +match[1]; year = +match[3];
-      month = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"].findIndex((m) => m === match![2].toLowerCase() || (match![2].length >= 3 && m.startsWith(match![2].toLowerCase()))) + 1;
-      if (!month) return { date: null, ambiguous: false };
+      const monthPattern = "(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)";
+      const ordinal = "(\\d{1,2})(?:st|nd|rd|th)?";
+      const named = new RegExp(`^(?:${ordinal}\\s*[-/. ,]?\\s*${monthPattern}\\s*[-/. ,]?\\s*(\\d{4})|${monthPattern}\\s+${ordinal},?\\s*(\\d{4}))$`, "i").exec(trimmed);
+      if (!named) return { date: null, ambiguous: false, invalid: false };
+      const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+      const monthIndex = (token: string) => months.findIndex((m) => m === token.toLowerCase() || (token.length >= 3 && m.startsWith(token.toLowerCase())));
+      if (named[1]) { day = Number(named[1]); month = monthIndex(named[2]) + 1; year = Number(named[3]); }
+      else { month = monthIndex(named[4]) + 1; day = Number(named[5]); year = Number(named[6]); }
     }
   }
   const date = new Date(Date.UTC(year, month - 1, day));
   const valid = date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
-  return { date: valid ? `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : null, ambiguous: false };
+  return { date: valid ? `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : null, ambiguous: false, invalid: !valid };
 }
-type DobAgeResult = { age: string | null; ambiguous: boolean; valid: boolean };
+type DobAgeResult = { age: string | null; ambiguous: boolean; valid: boolean; error?: "format" | "impossible" | "future" };
 function ageFromDate(value: string, today = new Date()): DobAgeResult {
   const parsed = parseDate(value);
   let year: number, month: number, day: number | undefined;
   if (parsed.date) [year, month, day] = parsed.date.split("-").map(Number);
   else {
     if (parsed.ambiguous) return { age: null, ambiguous: true, valid: false };
+    if (parsed.invalid) return { age: null, ambiguous: false, valid: false, error: "impossible" };
     const trimmed = value.trim();
     const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
     let partial: RegExpExecArray | null;
@@ -108,8 +113,9 @@ function ageFromDate(value: string, today = new Date()): DobAgeResult {
       month = monthNames.findIndex((name) => name === namedMonth || (namedMonth.length >= 3 && name.startsWith(namedMonth))) + 1;
     } else if ((partial = /^(\d{4})$/.exec(trimmed))) {
       year = +partial[1]; month = 0;
-    } else return { age: null, ambiguous: false, valid: false };
-    if (year < 1 || year > today.getFullYear() || (month !== 0 && (month < 1 || month > 12))) return { age: null, ambiguous: false, valid: false };
+    } else return { age: null, ambiguous: false, valid: false, error: "format" };
+    if (year < 1 || (month !== 0 && (month < 1 || month > 12))) return { age: null, ambiguous: false, valid: false, error: "impossible" };
+    if (year > today.getFullYear()) return { age: null, ambiguous: false, valid: false, error: "future" };
     if (month === 0) return { age: null, ambiguous: false, valid: true };
     if (today.getMonth() + 1 === month) return { age: null, ambiguous: false, valid: true };
     const partialAge = today.getFullYear() - year - (today.getMonth() + 1 < month ? 1 : 0);
@@ -121,7 +127,7 @@ function ageFromDate(value: string, today = new Date()): DobAgeResult {
   let age = currentYear - year;
   if (currentMonth < month || (currentMonth === month && currentDay < (day ?? 1))) age -= 1;
   const valid = age >= 0 && year <= currentYear;
-  return { age: valid ? String(age) : null, ambiguous: false, valid };
+  return { age: valid ? String(age) : null, ambiguous: false, valid, ...(!valid ? { error: "future" as const } : {}) };
 }
 
 function parseSiblingCount(value: string): { count: string; details?: string } {
@@ -303,7 +309,10 @@ export function parseMatrimonialProfileText(text: string, referenceDate = new Da
         if (result.age !== null) derivedAge = result.age;
         if (result.age !== null) detected.add("Age");
         if (result.ambiguous) warnings.push(`DOB “${value}” is ambiguous; use YYYY-MM-DD or a date with an unambiguous day/month.`);
-        else if (!result.valid) warnings.push(`DOB “${value}” is invalid or in the future and was not used.`);
+        else if (result.error === "impossible") warnings.push(`DOB “${value}” is an impossible calendar date and was not used.`);
+        else if (result.error === "future") warnings.push(`DOB “${value}” is in the future and was not used.`);
+        else if (result.error === "format") warnings.push(`DOB “${value}” has an unsupported or invalid format and was not used.`);
+        else if (!result.valid) warnings.push(`DOB “${value}” has an unsupported or invalid format and was not used.`);
         else if (result.age === null && /^\d{4}$/.test(value.trim())) warnings.push(`DOB “${value}” has year-only precision, so an age was not calculated.`);
         else if (result.age === null) warnings.push(`DOB “${value}” is missing the day and falls in the current birth month, so an exact age was not calculated.`);
       }
