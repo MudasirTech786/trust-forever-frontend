@@ -35,11 +35,6 @@ const navigation = [
     icon: "profiles",
     permission: "profiles.view",
   },
-  {
-    name: "Profile Formater",
-    href: "/dashboard/profile-format-converter",
-    icon: "profiles",
-  },
 ] as const;
 
 function NavIcon({ name }: { name: "dashboard" | "profiles" | "roles" | "users" }) {

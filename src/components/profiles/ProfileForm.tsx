@@ -208,7 +208,9 @@ export default function ProfileForm({ profile }: Props) {
   function fillFromParsedProfile(): void {
     if (!parseResult) return;
     setValues((current) => {
-      const parsed = { ...parseResult.data };
+      const parsed = Object.fromEntries(
+        Object.entries(parseResult.data).map(([key, value]) => [key, String(value)]),
+      );
       manuallyEditedFields.current.forEach((field) => { delete parsed[field]; });
       return { ...current, ...parsed };
     });
@@ -240,17 +242,13 @@ export default function ProfileForm({ profile }: Props) {
     setSaving(true);
     setError("");
     const data = new FormData();
+    const countFields = new Set(["sisters_count", "married_sisters_count", "brothers_count", "married_brothers_count"]);
     Object.entries(values).forEach(([key, value]) => {
-      if (
-        [
-          "sisters_count",
-          "married_sisters_count",
-          "brothers_count",
-          "married_brothers_count",
-        ].includes(key) &&
-        !value.trim()
-      ) {
-        data.set(key, "");
+      if (countFields.has(key)) {
+        const trimmed = value.trim();
+        if (!trimmed) data.set(key, "");
+        else if (/^\d+$/.test(trimmed) && Number(trimmed) <= 255) data.set(key, String(Number(trimmed)));
+        else data.set(key, trimmed); // Keep invalid input visible for the API to reject.
       } else {
         data.set(key, value);
       }
@@ -353,6 +351,9 @@ export default function ProfileForm({ profile }: Props) {
                         : "No recognized profile fields yet."}
                     </p>
                   </div>
+                  <p className="text-xs leading-5 text-[#64748B]">
+                    DOB is used to calculate age when it has enough date detail. Reference numbers such as IMB IDs are ignored.
+                  </p>
                   {parseResult.warnings.length > 0 && (
                     <p className="text-sm font-medium text-amber-800" role="status">
                       {parseResult.warnings.join(" ")}
@@ -611,6 +612,9 @@ export default function ProfileForm({ profile }: Props) {
               value={values.sisters_count}
               onChange={setField}
               type="number"
+              min={0}
+              max={255}
+              step={1}
             />
             <TextArea
               label="Sisters Details"
@@ -624,6 +628,9 @@ export default function ProfileForm({ profile }: Props) {
               value={values.married_sisters_count}
               onChange={setField}
               type="number"
+              min={0}
+              max={255}
+              step={1}
             />
             <Field
               label="Brothers"
@@ -631,6 +638,9 @@ export default function ProfileForm({ profile }: Props) {
               value={values.brothers_count}
               onChange={setField}
               type="number"
+              min={0}
+              max={255}
+              step={1}
             />
             <TextArea
               label="Brothers Details"
@@ -644,6 +654,9 @@ export default function ProfileForm({ profile }: Props) {
               value={values.married_brothers_count}
               onChange={setField}
               type="number"
+              min={0}
+              max={255}
+              step={1}
             />
             <div className="sm:col-span-2">
               <TextArea

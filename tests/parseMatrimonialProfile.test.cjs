@@ -211,7 +211,7 @@ const fixtures = [
     check(result) {
       assert.equal(result.data.gender, "male");
       assert.equal(result.dob, "11/1997");
-      assert.equal(result.data.age, new Date().getMonth() === 10 ? undefined : String(new Date().getFullYear() - 1997 - (new Date().getMonth() + 1 < 11 ? 1 : 0)));
+      assert.equal(result.data.age, String(new Date().getFullYear() - 1997 - (new Date().getMonth() + 1 < 11 ? 1 : 0)));
       assert.match(result.data.other_details, /Contact Person: Uncle/);
       assert.equal(result.data.whatsapp_number, "03001234567");
       assert.equal(JSON.stringify(result.data).includes("20593"), false);
@@ -274,11 +274,12 @@ for (const fixture of fixtures) {
   });
 }
 
-test("empty values do not become parsed form values and incomplete DOB is retained for review", () => {
-  const result = parse("Name:\nDate of Birth: 11/1997\nGender: Female");
+test("empty values do not become parsed form values and incomplete DOB calculates an age without a day", () => {
+  const result = parse("Name:\nDate of Birth: 11/1997\nGender: Female", new Date(2026, 10, 10, 12));
   assert.equal(result.data.name, undefined);
   assert.equal(result.dob, "11/1997");
-  assert.equal(result.data.age, new Date().getMonth() === 10 ? undefined : String(new Date().getFullYear() - 1997 - (new Date().getMonth() + 1 < 11 ? 1 : 0)));
+  assert.equal(result.data.age, "29");
+  assert.equal(result.warnings.some((warning) => /missing the day/i.test(warning)), false);
   assert.equal(result.data.gender, "female");
 });
 
@@ -295,7 +296,7 @@ function ageOn(dateOfBirth, now = new Date()) {
   return String(now.getFullYear() - year - (now.getMonth() + 1 < month || (now.getMonth() + 1 === month && now.getDate() < day) ? 1 : 0));
 }
 
-test("DOB date orders are explicit when possible and ambiguous dates are flagged", () => {
+test("DOB date orders prefer Pakistani day-month-year when both numbers are 12 or lower", () => {
   const today = new Date();
   const iso = parse("DOB: 1995-12-25");
   assert.equal(iso.data.age, ageOn("1995-12-25", today));
@@ -303,10 +304,10 @@ test("DOB date orders are explicit when possible and ambiguous dates are flagged
   assert.equal(parse("DOB: 25-08-1995").data.age, ageOn("1995-08-25", today));
   assert.equal(parse("DOB: 25/08/1995").data.age, ageOn("1995-08-25", today));
   assert.equal(parse("DOB: 1995/12/25").data.age, iso.data.age);
-  assert.equal(parse("DOB: 10-08-1995").data.age, undefined);
+  assert.equal(parse("DOB: 10-08-1995").data.age, ageOn("1995-08-10", today));
   const ambiguous = parse("1️⃣ DOB: 05-08-1995");
-  assert.equal(ambiguous.data.age, undefined);
-  assert.match(ambiguous.warnings.join(" "), /ambiguous/i);
+  assert.equal(ambiguous.data.age, ageOn("1995-08-05", today));
+  assert.equal(ambiguous.warnings.some((warning) => /ambiguous/i.test(warning)), false);
   assert.equal(parse("Age: 27\nDOB: 05-08-1995").data.age, "27");
 });
 
@@ -379,6 +380,39 @@ test("text month DOB accepts abbreviated, full, hyphenated, and year-first forms
   }
 });
 
+test("DOB supports Pakistani numeric formats, mixed separators, named months, and leap years", () => {
+  const today = new Date(2026, 10, 10, 12);
+  const cases = [
+    ["12-12-2000", "2000-12-12"], ["30/12/2000", "2000-12-30"],
+    ["15.08.1995", "1995-08-15"], ["30-12/2000", "2000-12-30"],
+    ["30/12-2000", "2000-12-30"], ["5-8-1995", "1995-08-05"],
+    ["2000-12-12", "2000-12-12"], ["5-Aug-1995", "1995-08-05"],
+    ["15 August 1995", "1995-08-15"], ["January 15, 1995", "1995-01-15"],
+    ["03-04-1995", "1995-04-03"], ["12/08/1995", "1995-08-12"],
+    ["29-02-2000", "2000-02-29"], ["29 Feb 2000", "2000-02-29"],
+  ];
+  for (const [dob, iso] of cases) {
+    const result = parse(`DOB: ${dob}`, today);
+    assert.equal(result.data.age, ageOn(iso, today), dob);
+    assert.equal(result.dob, dob, dob);
+  }
+});
+
+test("month/year DOB variants calculate age before, during, and after birth month", () => {
+  const november2026 = new Date(2026, 10, 10, 12);
+  const cases = [
+    ["11/1997", "29"], ["11-1997", "29"], ["11.1997", "29"], ["11 1997", "29"],
+    ["Nov 1997", "29"], ["November 1997", "29"], ["1997/11", "29"], ["1997-11", "29"],
+    ["12/1997", "28"], ["10/1997", "29"], ["05/2000", "26"],
+  ];
+  for (const [dob, expectedAge] of cases) {
+    const result = parse(`Date of Birth: ${dob}`, november2026);
+    assert.equal(result.data.age, expectedAge, dob);
+    assert.equal(result.dob, dob, dob);
+    assert.equal(result.warnings.some((warning) => /missing the day/i.test(warning)), false, dob);
+  }
+});
+
 test("ordinal and requested DOB formats calculate exact age without changing source DOB", () => {
   const today = new Date(2026, 10, 5, 12);
   const formats = ["Jan 15th 1990", "January 15th 1990", "Jan 15, 1990", "January 15, 1990", "15th Jan 1990", "15th January 1990", "15 January 1990", "15-Jan-1990", "1990-01-15", "15/01/1990"];
@@ -398,9 +432,9 @@ test("DOB errors distinguish impossible dates, future dates, ambiguous dates, an
   const today = new Date(2026, 10, 5, 12);
   assert.match(parse("DOB: February 29, 1995", today).warnings.join(" "), /impossible calendar date/i);
   assert.match(parse("DOB: 2999-01-01", today).warnings.join(" "), /in the future/i);
-  assert.match(parse("DOB: 05-08-1995", today).warnings.join(" "), /ambiguous/i);
+  assert.equal(parse("DOB: 05-08-1995", today).data.age, ageOn("1995-08-05", today));
   assert.match(parse("DOB: sometime around 1995", today).warnings.join(" "), /format/i);
-  assert.equal(parse("DOB: 11/1997", today).data.age, undefined);
+  assert.equal(parse("DOB: 11/1997", today).data.age, "29");
   assert.equal(parse("DOB: 11/1997", today).dob, "11/1997");
 });
 
@@ -429,4 +463,128 @@ test("including-me sibling count excludes candidate only when candidate gender i
   const male = parse("Gender: Male\nSiblings: 2 Sister 3 Brothers (including me)");
   assert.equal(male.data.sisters_count, "2");
   assert.equal(male.data.brothers_count, "2");
+});
+
+test("expanded aliases, punctuation, casing, formatting, and leading zero counts", () => {
+  const result = parse(`FULL NAME -> **Maddy Khan**\nGeNdR female\nM-Status: Never Married\nD-O-B 1998-05-01\nHt. 5 ft 8 in\nFirqah: Sunni\nBaradari: Rajpoot\nMother Tongue: Urdu\nHighest Education: Bachelors in Computer Science\nUniversity Name: University of Lahore\nEmployment Status: Working\nDesignation: Software Engineer at ABC Technologies\nMonthly Earnings: PKR 150k\nSisters Count: 02\nMarried S: 01\nB: 003\nMarried B: 0\nCity: Lahore`);
+  assert.equal(result.data.name, "Maddy Khan");
+  assert.equal(result.data.gender, "female");
+  assert.equal(result.data.marital_status, "unmarried");
+  assert.ok(result.data.age);
+  assert.equal(result.data.height, "5 ft 8 in");
+  assert.equal(result.data.sect, "Sunni");
+  assert.equal(result.data.caste, "Rajpoot");
+  assert.equal(result.data.language, "Urdu");
+  assert.equal(result.data.qualification, "Bachelors in Computer Science");
+  assert.equal(result.data.educational_institution, "University of Lahore");
+  assert.equal(result.data.employed, "Working");
+  assert.equal(result.data.job, "Software Engineer at ABC Technologies");
+  assert.equal(result.data.income, "PKR 150k");
+  assert.equal(result.data.sisters_count, "2");
+  assert.equal(result.data.married_sisters_count, 1);
+  assert.equal(result.data.brothers_count, "3");
+  assert.equal(result.data.married_brothers_count, 0);
+  assert.equal(result.data.city, "Lahore");
+});
+
+test("bare gender and marital words remain usable as labeled values", () => {
+  assert.equal(parse("Gender: Male\nMarital Status: Single").data.gender, "male");
+  assert.equal(parse("Gender: Male\nMarital Status: Single").data.marital_status, "unmarried");
+});
+
+test("married sibling yes/no answers normalize to integer counts across label formats", () => {
+  const cases = [
+    ["Married sis: Yes", "married_sisters_count", 1],
+    ["Married sis: No", "married_sisters_count", 0],
+    ["Married sisters: Yes", "married_sisters_count", 1],
+    ["Married sisters: No", "married_sisters_count", 0],
+    ["Sisters married: Y", "married_sisters_count", 1],
+    ["Sisters married: N", "married_sisters_count", 0],
+    ["Married Sis - No", "married_sisters_count", 0],
+    ["Married Sisters? No", "married_sisters_count", 0],
+    ["Married Bro: YES", "married_brothers_count", 1],
+    ["Married Bro: No", "married_brothers_count", 0],
+    ["Married brothers: Yes", "married_brothers_count", 1],
+    ["Married brothers: No", "married_brothers_count", 0],
+    ["Brothers married: Y", "married_brothers_count", 1],
+    ["Brothers married: N", "married_brothers_count", 0],
+    ["Married Brothers? Yes", "married_brothers_count", 1],
+    ["Married Sis: yEs", "married_sisters_count", 1],
+    ["Married Bro: nO", "married_brothers_count", 0],
+  ];
+  for (const [text, key, expected] of cases) {
+    const result = parse(text);
+    assert.equal(result.data[key], expected, text);
+    assert.equal(typeof result.data[key], "number", text);
+    assert.equal(result.warnings.length, 0, text);
+    assert.equal(result.unrecognized.length, 0, text);
+  }
+  const totals = parse("Sisters: 02\nBrothers: 03\nMarried sis: No\nMarried bro: Yes");
+  assert.equal(totals.data.sisters_count, "2");
+  assert.equal(totals.data.brothers_count, "3");
+  assert.equal(totals.data.married_sisters_count, 0);
+  assert.equal(totals.data.married_brothers_count, 1);
+});
+
+test("sibling counts normalize zeros and reject decimal, negative, and out-of-range values", () => {
+  const valid = parse("S: 01\nB: 003");
+  assert.equal(valid.data.sisters_count, "1");
+  assert.equal(valid.data.brothers_count, "3");
+  for (const invalid of ["-1", "1.5", "256"]) {
+    const parsed = parse(`Sisters Count: ${invalid}`);
+    assert.equal(parsed.data.sisters_count, undefined, invalid);
+    assert.ok(parsed.warnings.length, invalid);
+  }
+});
+
+test("natural language family examples extract totals and preserve sibling descriptions", () => {
+  const examples = [
+    {
+      text: "Siblings Details:\n1 brother: Manager in pharma\n1 Sister in Oman, 1 in Canada, 1 doctor, 1 teacher",
+      expected: [1, 4, undefined, undefined],
+    },
+    { text: "Siblings:\n2 brothers, both working\n3 sisters, 2 married", expected: [2, 3, undefined, 2] },
+    { text: "Family:\n1 brother working in Dubai\n2 sisters in Lahore\n1 sister doctor", expected: [1, 3, undefined, undefined] },
+    { text: "Brothers:\nOne elder brother, engineer\nOne younger brother, student\n\nSisters:\nOne sister married\nTwo sisters unmarried", expected: [2, 3, undefined, 1] },
+    { text: "1 brother\n1 sister in UK\n1 in Canada\n1 doctor\n1 teacher", expected: [1, 4, undefined, undefined] },
+    { text: "We are 5 siblings.\n2 brothers and 3 sisters.\nOne brother is a businessman.\nOne sister is a doctor.", expected: [2, 3, undefined, undefined] },
+  ];
+  let correct = 0, total = 0;
+  for (const [index, fixture] of examples.entries()) {
+    const result = parse(fixture.text);
+    const actual = [result.data.brothers_count, result.data.sisters_count, result.data.married_brothers_count, result.data.married_sisters_count];
+    const expected = fixture.expected.map((value, i) => value === undefined ? undefined : (i >= 2 ? value : String(value)));
+    for (let i = 0; i < expected.length; i += 1) {
+      total += 1;
+      if (actual[i] === expected[i]) correct += 1;
+      assert.equal(actual[i], expected[i], `example ${index + 1}, field ${i}: ${fixture.text}`);
+    }
+    const detailText = [result.data.brothers_details, result.data.sisters_details, result.data.other_details].filter(Boolean).join("\n");
+    assert.match(detailText, /Manager in pharma|working in Dubai|Oman|Canada|doctor|teacher|engineer|student|married|unmarried|businessman/i);
+  }
+  assert.equal(correct, total, `sibling field extraction accuracy: ${correct}/${total} (100%)`);
+});
+
+test("sibling number words, locations, mixed marital details, and explicit counts do not cross categories", () => {
+  const twoBrothers = parse("Two brothers, one in Saudi Arabia and another in Pakistan.");
+  assert.equal(twoBrothers.data.brothers_count, "2");
+  assert.equal(twoBrothers.data.sisters_count, undefined);
+
+  const mixed = parse("Sisters: 4 sisters, 2 married and 2 unmarried");
+  assert.equal(mixed.data.sisters_count, "4");
+  assert.equal(mixed.data.married_sisters_count, 2);
+  const combined = parse("1 brother and 2 sisters, all married");
+  assert.equal(combined.data.brothers_count, "1");
+  assert.equal(combined.data.sisters_count, "2");
+  assert.equal(combined.data.married_brothers_count, 1);
+  assert.equal(combined.data.married_sisters_count, 2);
+});
+
+test("unlabeled value patterns are not guessed into unrelated fields", () => {
+  const result = parse("Male 28 Rajpoot Lahore\nBachelors in Computer Science, University of Lahore\nSoftware Engineer at ABC Technologies\nMonthly 150k");
+  assert.equal(result.data.gender, undefined);
+  assert.equal(result.data.age, undefined);
+  assert.equal(result.data.caste, undefined);
+  assert.equal(result.data.city, undefined);
+  assert.ok(result.unrecognized.length > 0);
 });

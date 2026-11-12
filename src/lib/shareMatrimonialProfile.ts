@@ -1,13 +1,13 @@
 import { resolvePublicImageUrl, type MatrimonialProfile } from "@/services/rolesPermissions";
 
-export async function shareMatrimonialProfile(profile: MatrimonialProfile): Promise<boolean> {
+export function formatMatrimonialProfileDetails(profile: MatrimonialProfile): string {
   const section = (title: string, entries: Array<[string, unknown]>) => {
     const rows = entries
       .filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== "")
       .map(([label, value]) => `${label}: ${String(value)}`);
     return rows.length ? `${title}\n${"━".repeat(24)}\n${rows.join("\n")}` : "";
   };
-  const message = [
+  return [
     "Trust Forever Marriage Bureau",
     `Profile ID: ${profile.profile_id}`,
     section("📝 PERSONAL INFORMATION", [
@@ -20,6 +20,10 @@ export async function shareMatrimonialProfile(profile: MatrimonialProfile): Prom
     section("📱 WHATSAPP CONTACTS", [["Father", profile.father_whatsapp], ["Mother", profile.mother_whatsapp], ["Parents", profile.parents_whatsapp], ["Profile", profile.whatsapp_number]]),
     "Trust Forever Marriage Bureau",
   ].filter(Boolean).join("\n\n");
+}
+
+export async function shareMatrimonialProfile(profile: MatrimonialProfile): Promise<boolean> {
+  const message = formatMatrimonialProfileDetails(profile);
 
   const whatsappWindow = window.open("about:blank", "_blank");
   const fallbackToWhatsApp = () => {
